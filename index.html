@@ -1,0 +1,1900 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tablero de Citas — Agroterra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c26;
+    --surface2: #1e2332;
+    --border: #2a3048;
+    --text: #e8eaf0;
+    --text-dim: #6b7494;
+    --accent: #f5a623;
+    --accent2: #3ecfcf;
+
+    /* Tipos de tarea */
+    --color-V: #3ecfcf;   /* Viaje */
+    --color-S: #4caf82;   /* Servicio */
+    --color-R: #f5a623;   /* Reparación */
+    --color-G: #a78bfa;   /* Garantía */
+    --color-D: #60a5fa;   /* Diagnóstico */
+    --color-I: #94a3b8;   /* Interno */
+    --color-P: #f472b6;   /* Pre-entrega/PDI */
+    --color-C: #fb923c;   /* Capacitación */
+    --color-NO: #2a3048;  /* No disponible */
+    --color-DEM: #ef4444; /* Demora */
+    --color-PLM: #e879f9; /* Precisión/PLM */
+
+    --radius: 8px;
+    --radius-sm: 5px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    height: 56px;
+    gap: 12px;
+  }
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .logo span { color: var(--text-dim); font-weight: 600; }
+  .header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .week-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px 8px;
+  }
+  .week-nav button {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: 16px; line-height: 1;
+    padding: 2px 4px;
+    transition: color .15s;
+  }
+  .week-nav button:hover { color: var(--accent); }
+  .week-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .btn-add {
+    background: var(--accent);
+    color: #0f1117;
+    border: none;
+    border-radius: var(--radius);
+    padding: 7px 14px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: opacity .15s;
+  }
+  .btn-add:hover { opacity: .85; }
+
+  /* ── FILTROS ── */
+  .toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+  .chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .chip.active, .chip:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0f1117;
+  }
+  .chip.tech-chip.active { background: var(--accent2); border-color: var(--accent2); }
+
+  /* ── LEYENDA ── */
+  .legend {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 8px 16px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+  }
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 2px;
+  }
+
+  /* ── GRILLA GANTT ── */
+  .gantt-wrapper {
+    overflow-x: auto;
+    padding: 0 0 80px;
+  }
+  .gantt-table {
+    min-width: 900px;
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  /* Header de horas */
+  .gantt-head th {
+    background: var(--surface);
+    border-bottom: 2px solid var(--border);
+    padding: 0;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-weight: 500;
+    letter-spacing: .05em;
+    text-align: center;
+    height: 28px;
+    position: sticky;
+    top: 56px;
+    z-index: 90;
+  }
+  .gantt-head th.th-day {
+    width: 110px;
+    text-align: left;
+    padding-left: 12px;
+    border-right: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+  }
+  .gantt-head th.th-tech {
+    width: 56px;
+    border-right: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+  .gantt-head th.th-hour {
+    min-width: 52px;
+    border-right: 1px solid rgba(42,48,72,.5);
+  }
+  .gantt-head th.th-hour.noon {
+    border-right: 1px solid var(--border);
+  }
+
+  /* Filas */
+  .gantt-row {
+    border-bottom: 1px solid rgba(42,48,72,.4);
+    transition: background .1s;
+  }
+  .gantt-row:hover { background: rgba(255,255,255,.015); }
+  .gantt-row.day-start td.td-day {
+    border-top: 2px solid var(--border);
+  }
+  .gantt-row.day-first .td-day {
+    border-top: 2px solid var(--accent);
+  }
+  .gantt-row.weekend .td-day {
+    opacity: .5;
+  }
+
+  td {
+    padding: 0;
+    vertical-align: middle;
+    height: 34px;
+  }
+  td.td-day {
+    width: 110px;
+    padding: 4px 8px 4px 12px;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: var(--bg);
+  }
+  .day-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--text);
+  }
+  .day-date {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  td.td-tech {
+    width: 56px;
+    text-align: center;
+    border-right: 1px solid var(--border);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent2);
+    background: var(--surface);
+    position: sticky;
+    left: 110px;
+    z-index: 9;
+  }
+  td.td-cell {
+    min-width: 52px;
+    border-right: 1px solid rgba(42,48,72,.3);
+    position: relative;
+    padding: 3px 2px;
+  }
+  td.td-cell.noon { border-right: 1px solid var(--border); }
+
+  /* Bloques de tarea */
+  .task-block {
+    height: 26px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+    transition: filter .15s, transform .1s;
+    position: relative;
+    gap: 4px;
+  }
+  .task-block:hover {
+    filter: brightness(1.2);
+    transform: scaleY(1.05);
+    z-index: 5;
+  }
+  .task-block .task-type {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    font-size: 9px;
+    opacity: .75;
+    flex-shrink: 0;
+  }
+  .task-block .task-desc {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 10px;
+  }
+
+  /* Colores por tipo */
+  .task-V  { background: rgba(62,207,207,.18); color: var(--color-V);  border-left: 2px solid var(--color-V); }
+  .task-S  { background: rgba(76,175,130,.18); color: var(--color-S);  border-left: 2px solid var(--color-S); }
+  .task-R  { background: rgba(245,166,35,.18); color: var(--color-R);  border-left: 2px solid var(--color-R); }
+  .task-G  { background: rgba(167,139,250,.18); color: var(--color-G); border-left: 2px solid var(--color-G); }
+  .task-D  { background: rgba(96,165,250,.18); color: var(--color-D);  border-left: 2px solid var(--color-D); }
+  .task-I  { background: rgba(148,163,184,.12); color: var(--color-I); border-left: 2px solid var(--color-I); }
+  .task-P  { background: rgba(244,114,182,.18); color: var(--color-P); border-left: 2px solid var(--color-P); }
+  .task-C  { background: rgba(251,146,60,.18); color: var(--color-C);  border-left: 2px solid var(--color-C); }
+  .task-NO  { background: transparent; color: var(--text-dim); opacity:.4; font-size:9px; justify-content:center; border-left: none; }
+  .task-DEM { background: rgba(239,68,68,.18); color: var(--color-DEM); border-left: 2px solid var(--color-DEM); }
+  .task-PLM { background: rgba(232,121,249,.18); color: var(--color-PLM); border-left: 2px solid var(--color-PLM); }
+
+  /* Span de múltiples celdas */
+  .task-span {
+    position: absolute;
+    top: 4px;
+    left: 2px;
+    right: 2px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+    z-index: 2;
+    gap: 4px;
+    transition: filter .15s;
+  }
+  .task-span:hover { filter: brightness(1.2); }
+
+  /* ── FAB mobile ── */
+  .fab {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 52px; height: 52px;
+    background: var(--accent);
+    border-radius: 50%;
+    border: none;
+    color: #0f1117;
+    font-size: 24px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(245,166,35,.4);
+    z-index: 200;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(245,166,35,.5); }
+
+  @media (max-width: 640px) {
+    .fab { display: flex; }
+    .btn-add { display: none; }
+    header { padding: 0 12px; }
+    .toolbar { padding: 8px 12px; }
+  }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.65);
+    z-index: 300;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.open { display: flex; animation: fadeIn .2s; }
+  @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+
+  .modal {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    width: 100%;
+    max-width: 480px;
+    padding: 20px 20px 32px;
+    animation: slideUp .25s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(40px); opacity:0 } to { transform: translateY(0); opacity:1 } }
+
+  .modal-handle {
+    width: 40px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 16px;
+  }
+  .modal-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 16px;
+    color: var(--accent);
+  }
+  .form-row {
+    margin-bottom: 12px;
+  }
+  .form-row label {
+    display: block;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 5px;
+  }
+  .form-row select, .form-row input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 9px 12px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: border-color .15s;
+    -webkit-appearance: none;
+  }
+  .form-row select:focus, .form-row input:focus {
+    border-color: var(--accent);
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .tipo-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 5px;
+  }
+  .tipo-btn {
+    padding: 7px 4px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    transition: all .15s;
+  }
+  .tipo-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tipo-btn.sel-V  { background: rgba(62,207,207,.2);  border-color: var(--color-V);  color: var(--color-V);  }
+  .tipo-btn.sel-S  { background: rgba(76,175,130,.2);  border-color: var(--color-S);  color: var(--color-S);  }
+  .tipo-btn.sel-R  { background: rgba(245,166,35,.2);  border-color: var(--color-R);  color: var(--color-R);  }
+  .tipo-btn.sel-G  { background: rgba(167,139,250,.2); border-color: var(--color-G);  color: var(--color-G);  }
+  .tipo-btn.sel-D  { background: rgba(96,165,250,.2);  border-color: var(--color-D);  color: var(--color-D);  }
+  .tipo-btn.sel-I  { background: rgba(148,163,184,.15);border-color: var(--color-I);  color: var(--color-I);  }
+  .tipo-btn.sel-P  { background: rgba(244,114,182,.2); border-color: var(--color-P);  color: var(--color-P);  }
+  .tipo-btn.sel-C  { background: rgba(251,146,60,.2);  border-color: var(--color-C);  color: var(--color-C);  }
+  .tipo-btn.sel-NO  { background: rgba(42,48,72,.4);   border-color: var(--text-dim); color: var(--text-dim); }
+  .tipo-btn.sel-DEM { background: rgba(239,68,68,.2);  border-color: var(--color-DEM); color: var(--color-DEM); }
+  .tipo-btn.sel-PLM { background: rgba(232,121,249,.2);border-color: var(--color-PLM); color: var(--color-PLM); }
+
+  /* Campo motivo demora */
+  .demora-field {
+    display: none;
+    margin-top: 10px;
+  }
+  .demora-field.visible { display: block; }
+  .demora-field textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--color-DEM);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 9px 12px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    resize: none;
+    min-height: 60px;
+    outline: none;
+  }
+  .demora-field textarea::placeholder { color: var(--text-dim); }
+  .demora-field label {
+    display: block;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    color: var(--color-DEM);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 5px;
+  }
+
+  .modal-actions {
+    display: flex; gap: 10px; margin-top: 18px;
+  }
+  .btn-cancel {
+    flex: 1; padding: 11px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text-dim);
+    font-size: 14px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: border-color .15s;
+  }
+  .btn-cancel:hover { border-color: var(--text-dim); }
+  .btn-save {
+    flex: 2; padding: 11px;
+    background: var(--accent); border: none;
+    border-radius: var(--radius); color: #0f1117;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700; font-size: 14px;
+    cursor: pointer; transition: opacity .15s;
+  }
+  .btn-save:hover { opacity: .85; }
+
+  /* ── TOOLTIP ── */
+  .tooltip {
+    position: fixed;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 500;
+    max-width: 220px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    display: none;
+  }
+  .tooltip-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .tooltip-meta { color: var(--text-dim); font-size: 11px; }
+
+  /* empty cell */
+  .cell-empty {
+    height: 26px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background .1s;
+  }
+  .cell-empty:hover { background: rgba(245,166,35,.06); }
+
+  /* Fila de horas repetida por día */
+  .day-hours-row td {
+    height: 22px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .day-hours-row .td-day {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+  }
+
+  /* ── TABS DE NAVEGACIÓN ── */
+  .nav-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+  }
+  .nav-tab {
+    padding: 10px 18px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: .04em;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+    user-select: none;
+  }
+  .nav-tab:hover { color: var(--text); }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── ANALYTICS PANEL ── */
+  .analytics-panel { display: none; padding: 20px 16px 80px; }
+  .analytics-panel.visible { display: block; }
+  .tablero-panel { display: block; }
+  .tablero-panel.hidden { display: none; }
+
+  /* Toggle semana/mes */
+  .analytics-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .analytics-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 18px;
+    color: var(--text);
+  }
+  .period-toggle {
+    display: flex;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-left: auto;
+  }
+  .period-btn {
+    padding: 6px 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; font-weight: 500;
+    background: none; border: none;
+    color: var(--text-dim); cursor: pointer;
+    transition: all .15s; letter-spacing: .04em;
+  }
+  .period-btn.active { background: var(--accent); color: #0f1117; }
+  .period-nav {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px 10px;
+  }
+  .period-nav button {
+    background: none; border: none;
+    color: var(--text-dim); cursor: pointer;
+    font-size: 16px; padding: 2px 4px;
+    transition: color .15s;
+  }
+  .period-nav button:hover { color: var(--accent); }
+  .period-nav span {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px; color: var(--text);
+    white-space: nowrap;
+  }
+
+  /* KPI Cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px; margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    position: relative; overflow: hidden;
+    transition: border-color .2s;
+  }
+  .kpi-card:hover { border-color: var(--accent); }
+  .kpi-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0;
+    width: 3px; height: 100%;
+  }
+  .kpi-card.kpi-ok::before   { background: var(--color-S); }
+  .kpi-card.kpi-warn::before { background: var(--color-DEM); }
+  .kpi-card.kpi-info::before { background: var(--accent2); }
+  .kpi-card.kpi-neu::before  { background: var(--color-I); }
+  .kpi-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: .05em;
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 28px;
+    color: var(--text); line-height: 1;
+  }
+  .kpi-sub {
+    font-size: 11px; color: var(--text-dim);
+    margin-top: 4px;
+  }
+
+  /* Sección de charts */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px; margin-bottom: 24px;
+  }
+  @media (max-width: 700px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .chart-card.full { grid-column: 1 / -1; }
+  .chart-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700; font-size: 12px;
+    letter-spacing: .04em; color: var(--text);
+    margin-bottom: 14px; text-transform: uppercase;
+  }
+  .chart-title span {
+    color: var(--text-dim); font-weight: 600;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; text-transform: none;
+    margin-left: 6px;
+  }
+
+  /* Bar chart horizontal */
+  .bar-list { display: flex; flex-direction: column; gap: 8px; }
+  .bar-item { display: flex; align-items: center; gap: 10px; }
+  .bar-item-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: var(--text-dim);
+    width: 34px; flex-shrink: 0; text-align: right;
+  }
+  .bar-item-label.cliente {
+    width: 110px; text-align: left;
+    font-size: 10px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .bar-track {
+    flex: 1; height: 18px;
+    background: var(--surface2);
+    border-radius: 3px; overflow: hidden;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 3px;
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+    display: flex; align-items: center;
+    padding-left: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; font-weight: 500;
+    white-space: nowrap; overflow: hidden;
+  }
+  .bar-val {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: var(--text-dim);
+    width: 36px; text-align: right; flex-shrink: 0;
+  }
+
+  /* Donut chart */
+  .donut-wrap {
+    display: flex; align-items: center;
+    gap: 20px; flex-wrap: wrap;
+  }
+  .donut-svg { flex-shrink: 0; }
+  .donut-legend { flex: 1; min-width: 120px; }
+  .donut-item {
+    display: flex; align-items: center;
+    gap: 7px; margin-bottom: 7px;
+    font-size: 11px; color: var(--text);
+  }
+  .donut-dot {
+    width: 8px; height: 8px;
+    border-radius: 2px; flex-shrink: 0;
+  }
+  .donut-item-pct {
+    margin-left: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: var(--text-dim);
+  }
+
+  /* Heatmap de carga horaria */
+  .heatmap { overflow-x: auto; }
+  .heatmap-table {
+    border-collapse: collapse;
+    width: 100%; min-width: 400px;
+  }
+  .heatmap-table th {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px; color: var(--text-dim);
+    padding: 4px 3px; text-align: center;
+    font-weight: 400;
+  }
+  .heatmap-table th.hm-day {
+    text-align: left; padding-left: 0;
+    width: 34px; color: var(--text);
+    font-weight: 500;
+  }
+  .heatmap-table td {
+    width: 28px; height: 22px;
+    border-radius: 3px; cursor: default;
+    transition: filter .15s;
+    margin: 1px;
+    border: 1px solid var(--bg);
+  }
+  .heatmap-table td:hover { filter: brightness(1.4); }
+  .hm-0  { background: var(--surface2); }
+  .hm-1  { background: rgba(62,207,207,.15); }
+  .hm-2  { background: rgba(62,207,207,.30); }
+  .hm-3  { background: rgba(62,207,207,.50); }
+  .hm-4  { background: rgba(62,207,207,.70); }
+  .hm-5  { background: rgba(62,207,207,.90); }
+
+  /* Tabla demoras */
+  .demoras-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12px;
+  }
+  .demoras-table th {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: .04em;
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  .demoras-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(42,48,72,.4);
+    vertical-align: top;
+  }
+  .demoras-table tr:last-child td { border-bottom: none; }
+  .dem-tech {
+    font-family: 'DM Mono', monospace;
+    font-weight: 500; color: var(--accent2);
+    font-size: 12px;
+  }
+  .dem-motivo { color: var(--color-DEM); font-size: 11px; }
+  .dem-empty {
+    text-align: center; color: var(--text-dim);
+    padding: 20px; font-size: 12px;
+  }
+
+  /* Calendario mensual */
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+  }
+  .cal-dow {
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: var(--text-dim);
+    padding: 4px 0; letter-spacing: .04em;
+  }
+  .cal-day {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 6px 8px;
+    min-height: 62px;
+    cursor: pointer;
+    transition: border-color .15s;
+    position: relative;
+  }
+  .cal-day:hover { border-color: var(--accent); }
+  .cal-day.empty { background: transparent; border-color: transparent; cursor: default; }
+  .cal-day.today { border-color: var(--accent); }
+  .cal-day-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .cal-day.today .cal-day-num { color: var(--accent); font-weight: 700; }
+  .cal-dots { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 2px; }
+  .cal-dot {
+    width: 6px; height: 6px;
+    border-radius: 1px;
+  }
+  .cal-count {
+    position: absolute; bottom: 4px; right: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px; color: var(--text-dim);
+  }
+</style>
+<style>
+  /* ── DAY GROUP HEADER (dentro de tbody) ── */
+  .day-group-header {
+    background: var(--surface);
+  }
+  .day-group-header td {
+    padding: 6px 12px;
+    border-top: 2px solid var(--border);
+  }
+  .day-group-header.hoy td { border-top: 2px solid var(--accent); }
+  .day-info {
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .day-name-big {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 13px; color: var(--text);
+  }
+  .day-badge-hoy {
+    background: var(--accent); color: #0f1117;
+    font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500;
+    padding: 1px 6px; border-radius: 10px;
+    letter-spacing: .05em; text-transform: uppercase;
+  }
+  .day-count {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--text-dim); margin-left: auto;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">AGROTERRA <span>/ Citas</span></div>
+  <div class="header-right">
+    <div class="week-nav" id="weekNavEl">
+      <button id="prevWeek">‹</button>
+      <span class="week-label" id="weekLabel">19–23 MAY 2026</span>
+      <button id="nextWeek">›</button>
+    </div>
+    <button class="btn-add" id="btnAddHeader" onclick="openModal()">+ Nueva cita</button>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="nav-tabs">
+  <div class="nav-tab active" id="tabTablero" onclick="switchTab('tablero')">📅 Tablero</div>
+  <div class="nav-tab" id="tabAnalytics" onclick="switchTab('analytics')">📊 Analytics</div>
+</div>
+
+<div class="tablero-panel" id="tableroPanel">
+<!-- FILTROS -->
+<div class="toolbar">
+  <span class="filter-label">Técnico:</span>
+  <div id="techFilters"></div>
+</div>
+
+<!-- LEYENDA -->
+<div class="legend" id="legend"></div>
+
+<!-- GANTT -->
+<div class="gantt-wrapper">
+  <table class="gantt-table" id="ganttTable">
+    <thead class="gantt-head">
+      <tr id="headRow"></tr>
+    </thead>
+    <tbody id="ganttBody"></tbody>
+  </table>
+</div>
+</div><!-- /tableroPanel -->
+
+<!-- ANALYTICS PANEL -->
+<div class="analytics-panel" id="analyticsPanel">
+  <div class="analytics-header">
+    <div class="analytics-title">Analytics</div>
+    <div class="period-nav">
+      <button id="aPrev">‹</button>
+      <span id="aPeriodLabel"></span>
+      <button id="aNext">›</button>
+    </div>
+    <div class="period-toggle">
+      <button class="period-btn active" id="btnSemana" onclick="setPeriod('semana')">SEMANA</button>
+      <button class="period-btn" id="btnMes" onclick="setPeriod('mes')">MES</button>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- Charts row 1 -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Citas por tipo <span id="tipoTotal"></span></div>
+      <div class="donut-wrap">
+        <svg class="donut-svg" id="donutSvg" width="110" height="110" viewBox="0 0 110 110"></svg>
+        <div class="donut-legend" id="donutLegend"></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Carga por técnico <span id="techHoursLabel"></span></div>
+      <div class="bar-list" id="techBars"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top clientes <span id="topClientesLabel"></span></div>
+      <div class="bar-list" id="clienteBars"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Demoras registradas <span id="demorasCount"></span></div>
+      <table class="demoras-table">
+        <thead>
+          <tr>
+            <th>Fecha</th><th>Téc.</th><th>Cliente</th><th>Motivo</th>
+          </tr>
+        </thead>
+        <tbody id="demorasBody"></tbody>
+      </table>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-title">Mapa de carga horaria <span id="heatmapLabel">— citas por franja</span></div>
+      <div class="heatmap" id="heatmapWrap"></div>
+    </div>
+  </div>
+
+  <!-- Calendario mensual (solo visible en modo mes) -->
+  <div id="calWrap" style="display:none">
+    <div class="chart-card">
+      <div class="chart-title">Calendario mensual</div>
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+  </div>
+</div><!-- /analyticsPanel -->
+
+<!-- FAB -->
+<button class="fab" onclick="openModal()">+</button>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nueva cita</div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Fecha</label>
+        <input type="date" id="fDate">
+      </div>
+      <div class="form-row">
+        <label>Técnico</label>
+        <select id="fTech"></select>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Hora inicio</label>
+        <select id="fStart"></select>
+      </div>
+      <div class="form-row">
+        <label>Hora fin</label>
+        <select id="fEnd"></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Cliente</label>
+      <input type="text" id="fCliente" placeholder="Ej: FINLAR, CUENCA, FUNDAC RACHEL">
+    </div>
+    <div class="form-row">
+      <label>Descripción / tarea</label>
+      <input type="text" id="fDesc" placeholder="Ej: T7.195 · servicio 600hs">
+    </div>
+    <div class="form-row">
+      <label>Tipo</label>
+      <div class="tipo-grid" id="tipoGrid"></div>
+    </div>
+    <div class="demora-field" id="demoraField">
+      <label>⚠ Motivo de la demora</label>
+      <textarea id="fDemora" placeholder="Describí brevemente qué causó la demora..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveTask()">Guardar cita</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOOLTIP -->
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="ttTitle"></div>
+  <div class="tooltip-meta" id="ttMeta"></div>
+</div>
+
+<script>
+// ── DATOS BASE ──
+const TECNICOS = [
+  { id:'AT',  name:'Antonio Tissero' },
+  { id:'RC',  name:'Ricardo Castillo' },
+  { id:'MB',  name:'Matías Bogado' },
+  { id:'AR',  name:'Andrés Rocha' },
+  { id:'HR',  name:'Hebrahim Raies' },
+  { id:'VP',  name:'Víctor Pinedo' },
+  { id:'CC',  name:'Cristian Cáceres' },
+  { id:'AP',  name:'(Aprendiz)' },
+];
+
+const TIPOS = [
+  { id:'V',   label:'Viaje',           short:'V'   },
+  { id:'S',   label:'Servicio',        short:'S'   },
+  { id:'R',   label:'Reparación',      short:'R'   },
+  { id:'G',   label:'Garantía',        short:'G'   },
+  { id:'D',   label:'Diagnóstico',     short:'D'   },
+  { id:'I',   label:'Interno',         short:'I'   },
+  { id:'P',   label:'PDI/Pre-entrega', short:'P'   },
+  { id:'C',   label:'Capacitación',    short:'C'   },
+  { id:'DEM', label:'Demora',          short:'DEM' },
+  { id:'NO',  label:'No disponible',   short:'NO'  },
+  { id:'PLM', label:'Precisión/PLM',   short:'PLM' },
+];
+
+// Horas: 08:00 → 17:00, cada 30min = 19 slots
+const HOURS = [];
+for (let h = 8; h <= 17; h++) {
+  HOURS.push(`${String(h).padStart(2,'0')}:00`);
+  if (h < 17) HOURS.push(`${String(h).padStart(2,'0')}:30`);
+}
+
+// ══════════════════════════════════════════
+// ── API CONFIG — reemplazá con tu URL ──
+// ══════════════════════════════════════════
+const API_URL = 'https://script.google.com/macros/s/AKfycbzPLmNVJ3D7cOXqyqVPBQDMJRyf2_2k_3T31r1xR5F6HnAJCPh8MC-wVf3WpF-4apX0yA/exec';
+// Ejemplo: 'https://script.google.com/macros/s/AKfy.../exec'
+
+// ── ESTADO ──
+let currentMonday = getMonday(new Date());
+let activeTechs = new Set(TECNICOS.map(t=>t.id));
+let selectedTipo = 'S';
+let tasks = [];
+let nextId = Date.now();
+
+// Cache por rango de fechas ya cargado
+const loadedRanges = new Set();
+
+// ── INDICADOR DE CARGA ──
+function showLoading(msg) {
+  let el = document.getElementById('loadingBar');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'loadingBar';
+    el.style.cssText = `position:fixed;top:56px;left:0;right:0;z-index:500;
+      background:var(--surface);border-bottom:1px solid var(--border);
+      padding:8px 16px;font-family:'DM Mono',monospace;font-size:11px;
+      color:var(--accent);display:flex;align-items:center;gap:10px;`;
+    el.innerHTML = `<span style="animation:spin 1s linear infinite;display:inline-block">⟳</span><span id="loadingMsg"></span>`;
+    document.body.appendChild(el);
+  }
+  document.getElementById('loadingMsg').textContent = msg || 'Cargando...';
+  el.style.display = 'flex';
+}
+function hideLoading() {
+  const el = document.getElementById('loadingBar');
+  if (el) el.style.display = 'none';
+}
+
+// ── API CALLS ──────────────────────────────
+async function apiGet(params) {
+  const url = API_URL + '?' + new URLSearchParams(params).toString();
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Error HTTP ' + res.status);
+  return res.json();
+}
+
+async function apiPost(body) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error('Error HTTP ' + res.status);
+  return res.json();
+}
+
+// Cargar citas de una semana si no están en cache
+async function loadWeekIfNeeded(monday) {
+  const desde = toISO(monday);
+  const hasta = toISO(addDays(monday, 6));
+  const key   = desde + '_' + hasta;
+  if (loadedRanges.has(key)) return;
+
+  showLoading(`Cargando semana ${formatDate(monday)}…`);
+  try {
+    const r = await apiGet({ action:'getCitas', desde, hasta });
+    if (r.ok) {
+      // Eliminar las del mismo rango que ya existían (evitar duplicados en navegación)
+      tasks = tasks.filter(t => t.date < desde || t.date > hasta);
+      tasks.push(...r.data);
+      loadedRanges.add(key);
+    }
+  } catch(e) {
+    console.warn('API no disponible, modo offline:', e.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+// Cargar citas de un mes completo
+async function loadMonthIfNeeded(year, month) {
+  const desde = `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const lastDay = new Date(year, month+1, 0).getDate();
+  const hasta   = `${year}-${String(month+1).padStart(2,'0')}-${lastDay}`;
+  const key = desde + '_' + hasta;
+  if (loadedRanges.has(key)) return;
+
+  showLoading('Cargando mes…');
+  try {
+    const r = await apiGet({ action:'getCitas', desde, hasta });
+    if (r.ok) {
+      tasks = tasks.filter(t => t.date < desde || t.date > hasta);
+      tasks.push(...r.data);
+      loadedRanges.add(key);
+    }
+  } catch(e) {
+    console.warn('API no disponible, modo offline:', e.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+// Guardar nueva cita en Sheets
+async function persistCita(cita) {
+  if (!API_URL || API_URL.startsWith('TU_')) return cita.id; // modo demo
+  try {
+    const r = await apiPost({ action: 'createCita', cita });
+    if (r.ok) return r.id;
+  } catch(e) {
+    console.warn('No se pudo guardar en Sheets:', e.message);
+  }
+  return cita.id;
+}
+
+// Eliminar cita en Sheets
+async function deleteCitaRemote(id) {
+  if (!API_URL || API_URL.startsWith('TU_')) return;
+  try { await apiPost({ action: 'deleteCita', id }); }
+  catch(e) { console.warn('Error al eliminar:', e.message); }
+}
+
+
+// ── UTILIDADES ──
+function getMonday(d) {
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day===0 ? -6 : 1);
+  const m = new Date(d);
+  m.setDate(diff);
+  m.setHours(0,0,0,0);
+  return m;
+}
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate()+n);
+  return r;
+}
+function toISO(d) {
+  return d.toISOString().slice(0,10);
+}
+function formatDate(d) {
+  return d.toLocaleDateString('es-AR',{day:'2-digit',month:'short'}).toUpperCase();
+}
+function dayName(d) {
+  return d.toLocaleDateString('es-AR',{weekday:'short'}).toUpperCase().replace('.','');
+}
+const DAYS_ES = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
+function isToday(iso) {
+  return iso === toISO(new Date());
+}
+
+function slotIndex(time) {
+  const [h,m] = time.split(':').map(Number);
+  return (h-8)*2 + (m>=30?1:0);
+}
+function timeFromSlot(i) { return HOURS[i] || '17:00'; }
+
+// ── RENDER ──
+async function render() {
+  await loadWeekIfNeeded(currentMonday);
+  renderWeekLabel();
+  renderHead();
+  renderBody();
+}
+
+function renderWeekLabel() {
+  const fri = addDays(currentMonday, 4);
+  document.getElementById('weekLabel').textContent =
+    `${formatDate(currentMonday)} – ${formatDate(fri)}`;
+}
+
+function renderHead() {
+  const row = document.getElementById('headRow');
+  row.innerHTML = '';
+  const thDay = document.createElement('th');
+  thDay.className = 'th-day';
+  thDay.textContent = 'DÍA';
+  row.appendChild(thDay);
+
+  const thTech = document.createElement('th');
+  thTech.className = 'th-tech';
+  thTech.textContent = 'TÉC';
+  row.appendChild(thTech);
+
+  HOURS.forEach((h, i) => {
+    const th = document.createElement('th');
+    th.className = 'th-hour' + (h.endsWith(':00') && i>0 && !h.startsWith('08') ? ' noon' : '');
+    th.textContent = h.endsWith(':00') ? h : '';
+    row.appendChild(th);
+  });
+}
+
+function renderBody() {
+  const tbody = document.getElementById('ganttBody');
+  tbody.innerHTML = '';
+
+  const techList = TECNICOS.filter(t => activeTechs.has(t.id));
+
+  for (let d=0; d<5; d++) {
+    const date = addDays(currentMonday, d);
+    const iso = toISO(date);
+    const today = isToday(iso);
+    const dayTasks = tasks.filter(t => t.date===iso);
+
+    // Fila de encabezado del día
+    const headerRow = document.createElement('tr');
+    headerRow.className = 'day-group-header' + (today ? ' hoy' : '');
+    const headerTd = document.createElement('td');
+    headerTd.colSpan = 2 + HOURS.length;
+    headerTd.innerHTML = `
+      <div class="day-info">
+        <span class="day-name-big">${DAYS_ES[date.getDay()]} ${date.getDate()}</span>
+        ${today ? '<span class="day-badge-hoy">HOY</span>' : ''}
+        <span class="day-count">${dayTasks.filter(t=>t.tipo!=='NO').length} citas</span>
+      </div>`;
+    headerRow.appendChild(headerTd);
+    tbody.appendChild(headerRow);
+
+    // Fila de horas repetida por día
+    const hoursRow = document.createElement('tr');
+    hoursRow.className = 'day-hours-row';
+    const thDayH = document.createElement('td');
+    thDayH.className = 'td-day';
+    thDayH.style.cssText = 'padding-left:12px;';
+    thDayH.innerHTML = `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:.05em;text-transform:uppercase;">DÍA</span>`;
+    hoursRow.appendChild(thDayH);
+    const thTechH = document.createElement('td');
+    thTechH.style.cssText = 'text-align:center;border-right:1px solid var(--border);background:var(--surface);position:sticky;left:110px;z-index:9;';
+    thTechH.innerHTML = `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-dim);">TÉC</span>`;
+    hoursRow.appendChild(thTechH);
+    HOURS.forEach((h, i) => {
+      const td = document.createElement('td');
+      td.style.cssText = `min-width:52px;border-right:1px solid ${h.endsWith(':00') && i>0 ? 'var(--border)' : 'rgba(42,48,72,.3)'};background:var(--surface);padding:0;`;
+      td.innerHTML = h.endsWith(':00')
+        ? `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-dim);display:block;text-align:center;padding:3px 0;">${h}</span>`
+        : '';
+      hoursRow.appendChild(td);
+    });
+    tbody.appendChild(hoursRow);
+
+    // Una fila por técnico
+    techList.forEach(tech => {
+      const row = document.createElement('tr');
+      row.className = 'gantt-row';
+
+      // Col día (vacía en filas de técnico, el encabezado ya la tiene)
+      const tdDay = document.createElement('td');
+      tdDay.className = 'td-day';
+      // mostrar solo el nombre del técnico inline
+      tdDay.style.cssText = 'padding-left:20px;opacity:.5';
+      row.appendChild(tdDay);
+
+      // Col técnico
+      const tdTech = document.createElement('td');
+      tdTech.className = 'td-tech';
+      tdTech.textContent = tech.id;
+      tdTech.title = tech.name;
+      row.appendChild(tdTech);
+
+      // Obtener tareas de este técnico en este día
+      const techTasks = dayTasks.filter(t => t.tech===tech.id);
+
+      // Construir array de slots
+      const slotsTaken = new Array(HOURS.length).fill(null);
+      const taskSpanStart = {};
+
+      techTasks.forEach(task => {
+        const si = slotIndex(task.start);
+        const ei = Math.min(slotIndex(task.end), HOURS.length);
+        for (let s=si; s<ei; s++) {
+          if (!slotsTaken[s]) slotsTaken[s] = task;
+        }
+        taskSpanStart[si] = taskSpanStart[si] || task;
+      });
+
+      // Renderizar slots
+      let skip = 0;
+      HOURS.forEach((h, i) => {
+        if (skip > 0) { skip--; return; }
+
+        const tdCell = document.createElement('td');
+        tdCell.className = 'td-cell' + (h.endsWith(':00') && !h.startsWith('08') ? ' noon' : '');
+
+        const task = slotsTaken[i];
+        if (task) {
+          // calcular span
+          const si = slotIndex(task.start);
+          const ei = Math.min(slotIndex(task.end), HOURS.length);
+          const span = ei - si;
+          if (i === si) {
+            tdCell.colSpan = span;
+            skip = span - 1;
+
+            if (task.tipo === 'NO') {
+              tdCell.style.background = 'rgba(42,48,72,.2)';
+            } else {
+              const block = document.createElement('div');
+              block.className = `task-block task-${task.tipo}`;
+              const label = task.cliente || task.desc || '';
+              block.innerHTML = `<span class="task-type">${task.tipo}</span><span class="task-desc">${label}</span>`;
+              block.addEventListener('mouseenter', (e) => showTooltip(e, task));
+              block.addEventListener('mouseleave', hideTooltip);
+              block.addEventListener('click', () => editTask(task));
+              tdCell.appendChild(block);
+            }
+          } else {
+            // slot intermedio ya cubierto por colspan
+            return;
+          }
+        } else {
+          // celda vacía clickeable
+          const empty = document.createElement('div');
+          empty.className = 'cell-empty';
+          empty.addEventListener('click', () => {
+            openModal(iso, tech.id, h);
+          });
+          tdCell.appendChild(empty);
+        }
+
+        row.appendChild(tdCell);
+      });
+
+      tbody.appendChild(row);
+    });
+  }
+}
+
+// ── FILTROS TÉCNICOS ──
+function renderTechFilters() {
+  const container = document.getElementById('techFilters');
+  container.innerHTML = '';
+
+  // chip "Todos"
+  const allChip = document.createElement('div');
+  allChip.className = 'chip tech-chip ' + (activeTechs.size===TECNICOS.length ? 'active' : '');
+  allChip.textContent = 'Todos';
+  allChip.addEventListener('click', () => {
+    TECNICOS.forEach(t => activeTechs.add(t.id));
+    renderTechFilters();
+    renderBody();
+  });
+  container.appendChild(allChip);
+
+  TECNICOS.forEach(tech => {
+    const chip = document.createElement('div');
+    chip.className = 'chip tech-chip ' + (activeTechs.has(tech.id) ? 'active' : '');
+    chip.textContent = tech.id;
+    chip.title = tech.name;
+    chip.addEventListener('click', () => {
+      if (activeTechs.has(tech.id)) {
+        if (activeTechs.size > 1) activeTechs.delete(tech.id);
+      } else {
+        activeTechs.add(tech.id);
+      }
+      renderTechFilters();
+      renderBody();
+    });
+    container.appendChild(chip);
+  });
+}
+
+// ── LEYENDA ──
+function renderLegend() {
+  const container = document.getElementById('legend');
+  TIPOS.forEach(tipo => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<div class="legend-dot" style="background:var(--color-${tipo.id})"></div>${tipo.id} – ${tipo.label}`;
+    container.appendChild(item);
+  });
+}
+
+// ── MODAL ──
+function openModal(dateStr, techId, startTime) {
+  document.getElementById('modalOverlay').classList.add('open');
+  const today = dateStr || toISO(currentMonday);
+  document.getElementById('fDate').value = today;
+
+  const techSel = document.getElementById('fTech');
+  techSel.innerHTML = TECNICOS.map(t =>
+    `<option value="${t.id}" ${t.id===techId?'selected':''}>${t.id} – ${t.name}</option>`
+  ).join('');
+
+  const startSel = document.getElementById('fStart');
+  const endSel = document.getElementById('fEnd');
+  startSel.innerHTML = HOURS.map(h => `<option value="${h}" ${h===startTime?'selected':''}>${h}</option>`).join('');
+  endSel.innerHTML = HOURS.map(h => `<option value="${h}">${h}</option>`).join('');
+  endSel.value = startTime ? HOURS[Math.min(slotIndex(startTime)+4, HOURS.length-1)] : '12:00';
+
+  renderTipoGrid();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.getElementById('fCliente').value = '';
+  document.getElementById('fDesc').value = '';
+  document.getElementById('fDemora').value = '';
+  document.getElementById('demoraField').classList.remove('visible');
+}
+
+function renderTipoGrid() {
+  const grid = document.getElementById('tipoGrid');
+  grid.innerHTML = '';
+  TIPOS.forEach(tipo => {
+    const btn = document.createElement('button');
+    btn.className = `tipo-btn ${selectedTipo===tipo.id ? 'sel-'+tipo.id : ''}`;
+    btn.textContent = `${tipo.id} – ${tipo.label}`;
+    btn.style.fontSize = '10px';
+    btn.addEventListener('click', () => {
+      selectedTipo = tipo.id;
+      renderTipoGrid();
+      // Mostrar/ocultar campo demora
+      document.getElementById('demoraField').classList.toggle('visible', tipo.id === 'DEM');
+    });
+    grid.appendChild(btn);
+  });
+  // Si ya estaba seleccionado DEM al abrir, mostrar el campo
+  document.getElementById('demoraField').classList.toggle('visible', selectedTipo === 'DEM');
+}
+
+async function saveTask() {
+  const date    = document.getElementById('fDate').value;
+  const tech    = document.getElementById('fTech').value;
+  const start   = document.getElementById('fStart').value;
+  const end     = document.getElementById('fEnd').value;
+  const cliente = document.getElementById('fCliente').value.trim().toUpperCase();
+  const desc    = document.getElementById('fDesc').value.trim().toUpperCase();
+  const demora  = document.getElementById('fDemora').value.trim();
+
+  if (!date || !tech) { alert('Completá fecha y técnico'); return; }
+  if (selectedTipo !== 'NO' && !cliente) { alert('Completá el cliente'); return; }
+  if (selectedTipo === 'DEM' && !demora) { alert('Describí el motivo de la demora'); return; }
+  if (slotIndex(start) >= slotIndex(end)) { alert('La hora de fin debe ser mayor a la de inicio'); return; }
+
+  const cita = {
+    id:      'local_' + Date.now(),
+    date, tech,
+    tipo:    selectedTipo,
+    cliente: selectedTipo === 'NO' ? 'No disponible' : cliente,
+    desc,
+    demora:  selectedTipo === 'DEM' ? demora : '',
+    start, end
+  };
+
+  closeModal();
+
+  // Optimistic: mostrar de inmediato
+  tasks.push(cita);
+  renderBody();
+
+  // Persistir en background
+  const realId = await persistCita(cita);
+  // Actualizar id local con el de Sheets
+  const idx = tasks.findIndex(t => t.id === cita.id);
+  if (idx > -1) tasks[idx].id = realId;
+}
+
+function editTask(task) {
+  const tipo = TIPOS.find(t=>t.id===task.tipo);
+  const msg = [
+    `📋 ${task.cliente}${task.desc?' · '+task.desc:''}`,
+    `Tipo: ${tipo?.label||task.tipo}  |  Téc: ${task.tech}`,
+    `Horario: ${task.start} – ${task.end}`,
+    task.demora ? `⚠ Demora: ${task.demora}` : '',
+    '',
+    '¿Eliminar esta cita?'
+  ].filter(Boolean).join('\n');
+
+  if (confirm(msg)) {
+    tasks = tasks.filter(t => t.id !== task.id);
+    renderBody();
+    deleteCitaRemote(task.id);
+  }
+}
+
+// ── TOOLTIP ──
+function showTooltip(e, task) {
+  const tt = document.getElementById('tooltip');
+  const tipo = TIPOS.find(t=>t.id===task.tipo);
+  document.getElementById('ttTitle').textContent = task.cliente || task.desc || '';
+  document.getElementById('ttMeta').innerHTML = `
+    ${task.desc ? `<span style="color:var(--text)">${task.desc}</span><br>` : ''}
+    ${tipo?.label || task.tipo} &nbsp;·&nbsp; ${task.tech} &nbsp;·&nbsp; ${task.start}–${task.end}
+    ${task.demora ? `<br><span style="color:var(--color-DEM);margin-top:4px;display:block">⚠ ${task.demora}</span>` : ''}
+  `;
+  tt.style.display = 'block';
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  const tt = document.getElementById('tooltip');
+  tt.style.left = (e.clientX+12)+'px';
+  tt.style.top = (e.clientY-8)+'px';
+}
+function hideTooltip() {
+  document.getElementById('tooltip').style.display = 'none';
+}
+document.addEventListener('mousemove', e => {
+  if (document.getElementById('tooltip').style.display==='block') moveTooltip(e);
+});
+
+// ── NAV SEMANA ──
+document.getElementById('prevWeek').addEventListener('click', () => {
+  currentMonday = addDays(currentMonday, -7);
+  render();
+});
+document.getElementById('nextWeek').addEventListener('click', () => {
+  currentMonday = addDays(currentMonday, 7);
+  render();
+});
+
+// Analytics: cargar mes cuando es necesario
+async function renderAnalytics() {
+  if (analyticsPeriod === 'mes') {
+    await loadMonthIfNeeded(analyticsMonth.getFullYear(), analyticsMonth.getMonth());
+  } else {
+    await loadWeekIfNeeded(analyticsMonday);
+  }
+  document.getElementById('aPeriodLabel').textContent = periodLabel();
+  const pts = getPeriodTasks().filter(t => t.tipo !== 'NO');
+  renderKPIs(pts);
+  renderDonut(pts);
+  renderTechBars(pts);
+  renderClienteBars(pts);
+  renderDemoras(pts);
+  renderHeatmap(pts);
+  if (analyticsPeriod==='mes') renderCalendar(pts);
+}
+
+// cerrar modal al click afuera
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+
+// ── INIT ──
+renderLegend();
+renderTechFilters();
+render();
+
+// ══════════════════════════════════════════
+// ── ANALYTICS ──
+// ══════════════════════════════════════════
+
+let currentTab = 'tablero';
+let analyticsPeriod = 'semana';
+let analyticsMonday = getMonday(new Date());
+let analyticsMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabTablero').classList.toggle('active', tab==='tablero');
+  document.getElementById('tabAnalytics').classList.toggle('active', tab==='analytics');
+  document.getElementById('tableroPanel').classList.toggle('hidden', tab!=='tablero');
+  document.getElementById('analyticsPanel').classList.toggle('visible', tab==='analytics');
+  document.getElementById('weekNavEl').style.display = tab==='tablero' ? 'flex' : 'none';
+  document.getElementById('btnAddHeader').style.display = tab==='tablero' ? 'flex' : 'none';
+  if (tab==='analytics') renderAnalytics();
+}
+
+function setPeriod(p) {
+  analyticsPeriod = p;
+  document.getElementById('btnSemana').classList.toggle('active', p==='semana');
+  document.getElementById('btnMes').classList.toggle('active', p==='mes');
+  document.getElementById('calWrap').style.display = p==='mes' ? 'block' : 'none';
+  renderAnalytics();
+}
+
+document.getElementById('aPrev').addEventListener('click', () => {
+  if (analyticsPeriod==='semana') analyticsMonday = addDays(analyticsMonday, -7);
+  else analyticsMonth = new Date(analyticsMonth.getFullYear(), analyticsMonth.getMonth()-1, 1);
+  renderAnalytics();
+});
+document.getElementById('aNext').addEventListener('click', () => {
+  if (analyticsPeriod==='semana') analyticsMonday = addDays(analyticsMonday, 7);
+  else analyticsMonth = new Date(analyticsMonth.getFullYear(), analyticsMonth.getMonth()+1, 1);
+  renderAnalytics();
+});
+
+function getPeriodTasks() {
+  if (analyticsPeriod==='semana') {
+    const start = toISO(analyticsMonday);
+    const end   = toISO(addDays(analyticsMonday, 6));
+    return tasks.filter(t => t.date >= start && t.date <= end);
+  } else {
+    const y = analyticsMonth.getFullYear(), m = analyticsMonth.getMonth();
+    return tasks.filter(t => {
+      const d = new Date(t.date);
+      return d.getFullYear()===y && d.getMonth()===m;
+    });
+  }
+}
+
+function periodLabel() {
+  if (analyticsPeriod==='semana') {
+    const fri = addDays(analyticsMonday, 4);
+    return `${formatDate(analyticsMonday)} – ${formatDate(fri)}`;
+  } else {
+    return analyticsMonth.toLocaleDateString('es-AR',{month:'long',year:'numeric'}).toUpperCase();
+  }
+}
+
+function taskHours(t) {
+  const si = slotIndex(t.start), ei = slotIndex(t.end);
+  return Math.max(0, (ei - si) * 0.5);
+}
+
+// ── KPI Cards ──
+function renderKPIs(pts) {
+  const totalCitas = pts.filter(t=>t.tipo!=='DEM').length;
+  const totalHoras = pts.reduce((s,t)=>s+taskHours(t),0);
+  const totalDemoras = pts.filter(t=>t.tipo==='DEM').length;
+  // horas disponibles: técnicos activos × días laborables × 9h
+  const diasPeriodo = analyticsPeriod==='semana' ? 5
+    : (() => { const y=analyticsMonth.getFullYear(),m=analyticsMonth.getMonth();
+        let c=0; for(let d=1;d<=31;d++){const dt=new Date(y,m,d); if(dt.getMonth()!==m)break; if(dt.getDay()>0&&dt.getDay()<6)c++;} return c; })();
+  const horasDisp = TECNICOS.length * diasPeriodo * 9;
+  const eficiencia = horasDisp > 0 ? Math.round((totalHoras/horasDisp)*100) : 0;
+
+  const kpis = [
+    { label:'Citas totales',    value: totalCitas,            sub:'en el período',           cls:'kpi-info' },
+    { label:'Horas asignadas',  value: totalHoras.toFixed(1), sub:`de ${horasDisp}h disp.`, cls:'kpi-ok'   },
+    { label:'Eficiencia',       value: eficiencia+'%',        sub:'ocupación del equipo',    cls: eficiencia>70?'kpi-ok':'kpi-warn' },
+    { label:'Demoras',          value: totalDemoras,          sub:'registradas',             cls: totalDemoras>0?'kpi-warn':'kpi-ok' },
+    { label:'Clientes únicos',  value: new Set(pts.map(t=>t.cliente)).size, sub:'atendidos', cls:'kpi-neu'  },
+  ];
+  const grid = document.getElementById('kpiGrid');
+  grid.innerHTML = '';
+  kpis.forEach(k => {
+    grid.innerHTML += `<div class="kpi-card ${k.cls}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`;
+  });
+}
+
+// ── Donut chart ──
+const TIPO_COLORS = {V:'#3ecfcf',S:'#4caf82',R:'#f5a623',G:'#a78bfa',D:'#60a5fa',I:'#94a3b8',P:'#f472b6',C:'#fb923c',DEM:'#ef4444',PLM:'#e879f9'};
+
+function renderDonut(pts) {
+  const counts = {};
+  pts.forEach(t => { if(t.tipo!=='DEM') counts[t.tipo]=(counts[t.tipo]||0)+1; });
+  const total = Object.values(counts).reduce((a,b)=>a+b,0)||1;
+  const svg = document.getElementById('donutSvg');
+  const legend = document.getElementById('donutLegend');
+  document.getElementById('tipoTotal').textContent = `— ${total} citas`;
+
+  const CX=55, CY=55, R=40, r=24;
+  let startAngle = -Math.PI/2;
+  let paths = '';
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+
+  entries.forEach(([tipo, cnt]) => {
+    const angle = (cnt/total)*2*Math.PI;
+    const endAngle = startAngle + angle;
+    const x1=CX+R*Math.cos(startAngle), y1=CY+R*Math.sin(startAngle);
+    const x2=CX+R*Math.cos(endAngle),   y2=CY+R*Math.sin(endAngle);
+    const ix1=CX+r*Math.cos(startAngle),iy1=CY+r*Math.sin(startAngle);
+    const ix2=CX+r*Math.cos(endAngle),  iy2=CY+r*Math.sin(endAngle);
+    const large = angle>Math.PI?1:0;
+    const color = TIPO_COLORS[tipo]||'#888';
+    paths += `<path d="M${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} L${ix2},${iy2} A${r},${r} 0 ${large},0 ${ix1},${iy1} Z"
+      fill="${color}" opacity=".85" style="cursor:default">
+      <title>${tipo}: ${cnt}</title></path>`;
+    startAngle = endAngle;
+  });
+  svg.innerHTML = paths + `<text x="${CX}" y="${CY+4}" text-anchor="middle" font-family="Syne,sans-serif" font-weight="800" font-size="14" fill="#e8eaf0">${total}</text>`;
+
+  legend.innerHTML = entries.map(([tipo,cnt])=>{
+    const tinfo = TIPOS.find(t=>t.id===tipo);
+    return `<div class="donut-item">
+      <div class="donut-dot" style="background:${TIPO_COLORS[tipo]||'#888'}"></div>
+      <span>${tinfo?.label||tipo}</span>
+      <span class="donut-item-pct">${cnt} &nbsp;(${Math.round(cnt/total*100)}%)</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Barras técnicos ──
+function renderTechBars(pts) {
+  const horasPorTech = {};
+  TECNICOS.forEach(t => horasPorTech[t.id]=0);
+  pts.filter(t=>t.tipo!=='DEM').forEach(t => { horasPorTech[t.tech]=(horasPorTech[t.tech]||0)+taskHours(t); });
+  const max = Math.max(...Object.values(horasPorTech), 1);
+  document.getElementById('techHoursLabel').textContent = '— horas asignadas';
+  const container = document.getElementById('techBars');
+  container.innerHTML = '';
+  TECNICOS.forEach(tech => {
+    const h = horasPorTech[tech.id]||0;
+    const pct = Math.round(h/max*100);
+    const color = h > max*0.8 ? '#ef4444' : h > max*0.5 ? '#f5a623' : '#4caf82';
+    container.innerHTML += `<div class="bar-item">
+      <span class="bar-item-label">${tech.id}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}22;color:${color};border-left:2px solid ${color}">${h>0?h.toFixed(1)+'h':''}</div></div>
+      <span class="bar-val">${h.toFixed(1)}h</span>
+    </div>`;
+  });
+}
+
+// ── Top clientes ──
+function renderClienteBars(pts) {
+  const cnts = {};
+  pts.filter(t=>t.tipo!=='DEM'&&t.cliente&&t.cliente!=='NO DISPONIBLE')
+    .forEach(t=>{ cnts[t.cliente]=(cnts[t.cliente]||0)+1; });
+  const sorted = Object.entries(cnts).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const max = sorted[0]?.[1]||1;
+  document.getElementById('topClientesLabel').textContent = `— top ${sorted.length}`;
+  const container = document.getElementById('clienteBars');
+  container.innerHTML = '';
+  if (!sorted.length) { container.innerHTML='<div class="dem-empty">Sin datos en el período</div>'; return; }
+  sorted.forEach(([cli, cnt]) => {
+    const pct = Math.round(cnt/max*100);
+    container.innerHTML += `<div class="bar-item">
+      <span class="bar-item-label cliente" title="${cli}">${cli}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:rgba(62,207,207,.15);color:var(--accent2);border-left:2px solid var(--accent2)">${cnt>1?cnt+' citas':''}</div></div>
+      <span class="bar-val">${cnt}</span>
+    </div>`;
+  });
+}
+
+// ── Tabla demoras ──
+function renderDemoras(pts) {
+  const demoras = pts.filter(t=>t.tipo==='DEM');
+  document.getElementById('demorasCount').textContent = `— ${demoras.length}`;
+  const tbody = document.getElementById('demorasBody');
+  if (!demoras.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="dem-empty">✓ Sin demoras en el período</td></tr>';
+    return;
+  }
+  tbody.innerHTML = demoras.map(t=>`<tr>
+    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${t.date}</td>
+    <td><span class="dem-tech">${t.tech}</span></td>
+    <td style="font-size:11px">${t.cliente}</td>
+    <td><span class="dem-motivo">${t.demora||'—'}</span></td>
+  </tr>`).join('');
+}
+
+// ── Heatmap de carga ──
+function renderHeatmap(pts) {
+  // Filas = técnicos, Cols = franjas horarias de 1h (08-17)
+  const hourLabels = ['08','09','10','11','12','13','14','15','16','17'];
+  const hmap = {};
+  TECNICOS.forEach(tech => {
+    hmap[tech.id] = {};
+    hourLabels.forEach(h => hmap[tech.id][h]=0);
+  });
+  pts.filter(t=>t.tipo!=='DEM').forEach(t => {
+    const si = slotIndex(t.start), ei = Math.min(slotIndex(t.end), HOURS.length);
+    for (let s=si; s<ei; s++) {
+      const h = HOURS[s].slice(0,2);
+      if (hmap[t.tech] && hmap[t.tech][h]!==undefined) hmap[t.tech][h]++;
+    }
+  });
+  const maxVal = Math.max(...TECNICOS.flatMap(tech => hourLabels.map(h=>hmap[tech.id][h])), 1);
+
+  let html = '<table class="heatmap-table"><thead><tr>';
+  html += '<th class="hm-day">TÉC</th>';
+  hourLabels.forEach(h => html += `<th>${h}h</th>`);
+  html += '</tr></thead><tbody>';
+
+  TECNICOS.forEach(tech => {
+    html += `<tr><th class="hm-day">${tech.id}</th>`;
+    hourLabels.forEach(h => {
+      const v = hmap[tech.id][h];
+      const lvl = v===0?0:Math.min(5, Math.ceil(v/maxVal*5));
+      html += `<td class="hm-${lvl}" title="${tech.id} ${h}h: ${v} citas"></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('heatmapWrap').innerHTML = html;
+}
+
+// ── Calendario mensual ──
+function renderCalendar(pts) {
+  const countsByDay = {};
+  pts.forEach(t => { countsByDay[t.date]=(countsByDay[t.date]||[]); countsByDay[t.date].push(t.tipo); });
+  const y=analyticsMonth.getFullYear(), m=analyticsMonth.getMonth();
+  const firstDay = new Date(y,m,1).getDay();
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const offset = firstDay===0?6:firstDay-1; // lunes primero
+
+  let html = '';
+  ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'].forEach(d => html+=`<div class="cal-dow">${d}</div>`);
+  for(let i=0;i<offset;i++) html+=`<div class="cal-day empty"></div>`;
+
+  for(let d=1;d<=daysInMonth;d++) {
+    const iso=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const tipos = countsByDay[iso]||[];
+    const today = iso===toISO(new Date());
+    const dots = [...new Set(tipos)].slice(0,6).map(t=>`<div class="cal-dot" style="background:${TIPO_COLORS[t]||'#888'}" title="${t}"></div>`).join('');
+    html+=`<div class="cal-day${today?' today':''}">
+      <div class="cal-day-num">${d}</div>
+      <div class="cal-dots">${dots}</div>
+      ${tipos.length>0?`<div class="cal-count">${tipos.length}</div>`:''}
+    </div>`;
+  }
+  document.getElementById('calGrid').innerHTML = html;
+}
+</script>
+</body>
+</html>
