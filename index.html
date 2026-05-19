@@ -1103,7 +1103,7 @@ for (let h = 8; h <= 17; h++) {
 // ══════════════════════════════════════════
 // ── API CONFIG — reemplazá con tu URL ──
 // ══════════════════════════════════════════
-const API_URL = 'https://script.google.com/macros/s/AKfycbzPLmNVJ3D7cOXqyqVPBQDMJRyf2_2k_3T31r1xR5F6HnAJCPh8MC-wVf3WpF-4apX0yA/exec';
+const API_URL = 'TU_APPS_SCRIPT_URL_ACA';
 // Ejemplo: 'https://script.google.com/macros/s/AKfy.../exec'
 
 // ── ESTADO ──
@@ -1202,9 +1202,21 @@ async function loadMonthIfNeeded(year, month) {
 
 // Guardar nueva cita en Sheets
 async function persistCita(cita) {
-  if (!API_URL || API_URL.startsWith('TU_')) return cita.id; // modo demo
+  if (!API_URL || API_URL.startsWith('TU_')) return cita.id;
   try {
-    const r = await apiPost({ action: 'createCita', cita });
+    const params = new URLSearchParams({
+      action:  'createCita',
+      date:    cita.date,
+      tech:    cita.tech,
+      tipo:    cita.tipo,
+      cliente: cita.cliente || '',
+      desc:    cita.desc    || '',
+      start:   cita.start,
+      end:     cita.end,
+      demora:  cita.demora  || '',
+    });
+    const res = await fetch(API_URL + '?' + params.toString());
+    const r   = await res.json();
     if (r.ok) return r.id;
   } catch(e) {
     console.warn('No se pudo guardar en Sheets:', e.message);
@@ -1215,8 +1227,12 @@ async function persistCita(cita) {
 // Eliminar cita en Sheets
 async function deleteCitaRemote(id) {
   if (!API_URL || API_URL.startsWith('TU_')) return;
-  try { await apiPost({ action: 'deleteCita', id }); }
-  catch(e) { console.warn('Error al eliminar:', e.message); }
+  try {
+    const params = new URLSearchParams({ action: 'deleteCita', id });
+    await fetch(API_URL + '?' + params.toString());
+  } catch(e) {
+    console.warn('Error al eliminar:', e.message);
+  }
 }
 
 
