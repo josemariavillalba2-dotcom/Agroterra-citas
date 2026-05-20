@@ -1,0 +1,25 @@
+{
+  "name": "Tablero de Citas — Agroterra",
+  "short_name": "Citas AG",
+  "description": "Programación de servicios Agroterra",
+  "start_url": "/Agroterra-citas/",
+  "scope": "/Agroterra-citas/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1117",
+  "theme_color": "#f5a623",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
