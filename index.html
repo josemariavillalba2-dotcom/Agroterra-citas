@@ -1163,9 +1163,10 @@ async function loadWeekIfNeeded(monday) {
 
   showLoading(`Cargando semana ${formatDate(monday)}…`);
   try {
-    const r = await apiGet({ action:'getCitas', desde, hasta });
+    const params = new URLSearchParams({ action:'getCitas', desde, hasta });
+    const res = await fetch(API_URL + '?' + params.toString(), { redirect:'follow' });
+    const r = await res.json();
     if (r.ok) {
-      // Eliminar las del mismo rango que ya existían (evitar duplicados en navegación)
       tasks = tasks.filter(t => t.date < desde || t.date > hasta);
       tasks.push(...r.data);
       loadedRanges.add(key);
@@ -1187,7 +1188,9 @@ async function loadMonthIfNeeded(year, month) {
 
   showLoading('Cargando mes…');
   try {
-    const r = await apiGet({ action:'getCitas', desde, hasta });
+    const params = new URLSearchParams({ action:'getCitas', desde, hasta });
+    const res = await fetch(API_URL + '?' + params.toString(), { redirect:'follow' });
+    const r = await res.json();
     if (r.ok) {
       tasks = tasks.filter(t => t.date < desde || t.date > hasta);
       tasks.push(...r.data);
@@ -1215,7 +1218,7 @@ async function persistCita(cita) {
       end:     cita.end,
       demora:  cita.demora  || '',
     });
-    const res = await fetch(API_URL + '?' + params.toString());
+    const res = await fetch(API_URL + '?' + params.toString(), { redirect:'follow' });
     const r   = await res.json();
     if (r.ok) return r.id;
   } catch(e) {
@@ -1229,7 +1232,7 @@ async function deleteCitaRemote(id) {
   if (!API_URL || API_URL.startsWith('TU_')) return;
   try {
     const params = new URLSearchParams({ action: 'deleteCita', id });
-    await fetch(API_URL + '?' + params.toString());
+    await fetch(API_URL + '?' + params.toString(), { redirect:'follow' });
   } catch(e) {
     console.warn('Error al eliminar:', e.message);
   }
