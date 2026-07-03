@@ -378,7 +378,7 @@
     color: var(--accent2);
     background: var(--surface);
     position: sticky;
-    left: 110px;
+    left: 0;
     z-index: 9;
     white-space: nowrap;
     overflow: hidden;
@@ -1600,14 +1600,9 @@ function renderMonthBoard() {
 function renderHead() {
   const row = document.getElementById('headRow');
   row.innerHTML = '';
-  const thDay = document.createElement('th');
-  thDay.className = 'th-day';
-  thDay.textContent = 'DÍA';
-  row.appendChild(thDay);
-
   const thTech = document.createElement('th');
   thTech.className = 'th-tech';
-  thTech.textContent = 'TÉC';
+  thTech.textContent = 'TÉCNICO';
   row.appendChild(thTech);
 
   HOURS.forEach((h, i) => {
@@ -1635,7 +1630,7 @@ function renderBody() {
     const headerRow = document.createElement('tr');
     headerRow.className = 'day-group-header' + (today ? ' hoy' : '');
     const headerTd = document.createElement('td');
-    headerTd.colSpan = 2 + HOURS.length;
+    headerTd.colSpan = 1 + HOURS.length;
     headerTd.innerHTML = `
       <div class="day-info">
         <span class="day-name-big">${DAYS_ES[date.getDay()]} ${date.getDate()}</span>
@@ -1649,14 +1644,10 @@ function renderBody() {
     // Fila de horas repetida por día
     const hoursRow = document.createElement('tr');
     hoursRow.className = 'day-hours-row';
-    const thDayH = document.createElement('td');
-    thDayH.className = 'td-day';
-    thDayH.style.cssText = 'padding-left:12px;';
-    thDayH.innerHTML = `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-dim);letter-spacing:.05em;text-transform:uppercase;">DÍA</span>`;
-    hoursRow.appendChild(thDayH);
     const thTechH = document.createElement('td');
-    thTechH.style.cssText = 'text-align:center;border-right:1px solid var(--border);background:var(--surface);position:sticky;left:110px;z-index:9;';
-    thTechH.innerHTML = `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-dim);">TÉC</span>`;
+    thTechH.className = 'td-tech';
+    thTechH.style.cssText = 'color:var(--text-dim);font-size:9px;letter-spacing:.05em;text-transform:uppercase;';
+    thTechH.textContent = 'TÉCNICO';
     hoursRow.appendChild(thTechH);
     HOURS.forEach((h, i) => {
       const td = document.createElement('td');
@@ -1672,13 +1663,6 @@ function renderBody() {
     techList.forEach(tech => {
       const row = document.createElement('tr');
       row.className = 'gantt-row';
-
-      // Col día (vacía en filas de técnico, el encabezado ya la tiene)
-      const tdDay = document.createElement('td');
-      tdDay.className = 'td-day';
-      // mostrar solo el nombre del técnico inline
-      tdDay.style.cssText = 'padding-left:20px;opacity:.5';
-      row.appendChild(tdDay);
 
       // Col técnico
       const tdTech = document.createElement('td');
