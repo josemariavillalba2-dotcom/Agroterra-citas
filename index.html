@@ -1473,7 +1473,7 @@ function toISO(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 // Escape de texto de usuario para innerHTML
-function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function formatDate(d) {
   return d.toLocaleDateString('es-AR',{day:'2-digit',month:'short'}).toUpperCase();
 }
@@ -1879,7 +1879,7 @@ async function saveTask() {
     slotIndex(t.start) < ei && slotIndex(t.end) > si
   );
   if (clash) {
-    const techName = TECNICOS.find(t=>t.id===tech)?.name || tech;
+    const _tn = TECNICOS.find(t=>t.id===tech); const techName = (_tn&&_tn.name) || tech;
     if (!confirm(`⚠ SOLAPAMIENTO\n\n${techName} ya tiene "${clash.cliente}${clash.desc?' · '+clash.desc:''}" de ${clash.start} a ${clash.end} ese día.\n\n¿Guardar igual la cita superpuesta?`)) return;
   }
 
@@ -1960,7 +1960,7 @@ function showTooltip(e, task) {
   document.getElementById('ttTitle').textContent = task.cliente || task.desc || '';
   document.getElementById('ttMeta').innerHTML = `
     ${task.desc ? `<span style="color:var(--text)">${esc(task.desc)}</span><br>` : ''}
-    ${tipo?.label || task.tipo} &nbsp;·&nbsp; ${task.tech} &nbsp;·&nbsp; ${task.start}–${task.end}
+    ${(tipo&&tipo.label) || task.tipo} &nbsp;·&nbsp; ${task.tech} &nbsp;·&nbsp; ${task.start}–${task.end}
     ${task.demora ? `<br><span style="color:var(--color-DEM);margin-top:4px;display:block">⚠ ${esc(task.demora)}</span>` : ''}
   `;
   tt.style.display = 'block';
@@ -2169,7 +2169,7 @@ function renderDonut(pts) {
     const tinfo = TIPOS.find(t=>t.id===tipo);
     return `<div class="donut-item">
       <div class="donut-dot" style="background:${TIPO_COLORS[tipo]||'#888'}"></div>
-      <span>${tinfo?.label||tipo}</span>
+      <span>${(tinfo&&tinfo.label)||tipo}</span>
       <span class="donut-item-pct">${cnt} &nbsp;(${Math.round(cnt/total*100)}%)</span>
     </div>`;
   }).join('');
@@ -2202,7 +2202,7 @@ function renderClienteBars(pts) {
   pts.filter(t=>t.tipo!=='DEM'&&t.cliente&&t.cliente!=='NO DISPONIBLE')
     .forEach(t=>{ cnts[t.cliente]=(cnts[t.cliente]||0)+1; });
   const sorted = Object.entries(cnts).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const max = sorted[0]?.[1]||1;
+  const max = (sorted[0] && sorted[0][1])||1;
   document.getElementById('topClientesLabel').textContent = `— top ${sorted.length}`;
   const container = document.getElementById('clienteBars');
   container.innerHTML = '';
@@ -2359,10 +2359,23 @@ if (TV_MODE) {
   }, TV_REFRESH_MS);
 }
 
-// ── SERVICE WORKER ──
+// ── SERVICE WORKER — registro con auto-actualización ──
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+  window.addEventListener("load", function() {
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+      .then(function(reg) {
+        // Chequear actualizaciones cada 30 min (clave para el tele siempre prendido)
+        setInterval(function() { reg.update().catch(function(){}); }, 30 * 60 * 1000);
+      })
+      .catch(function(){});
+
+    // Cuando se activa un service worker nuevo, recargar UNA vez para tomar la versión fresca
+    var reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function() {
+      if (reloaded) return;
+      reloaded = true;
+      location.reload();
+    });
   });
 }
 </script>

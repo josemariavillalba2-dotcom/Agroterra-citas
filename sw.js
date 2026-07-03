@@ -1,37 +1,49 @@
-const CACHE = 'agroterra-citas-v2';   // ← bump de versión: purga el cache viejo (que tenía el HTML roto)
-const ASSETS = [
-  '/Agroterra-citas/',
-  '/Agroterra-citas/index.html',
-];
+// ══════════════════════════════════════════════════════════════
+//  SERVICE WORKER — Tablero de Citas Agroterra
+//  Estrategia: RED SIEMPRE PRIMERO, cache solo como respaldo offline.
+//  El HTML nunca se congela: cada carga exitosa renueva el respaldo.
+// ══════════════════════════════════════════════════════════════
+var CACHE = 'agroterra-citas-v3';
 
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS))
-  );
+self.addEventListener('install', function(e) {
+  // NO pre-cachear nada: así jamás se congela una copia mala en la instalación.
   self.skipWaiting();
 });
 
-self.addEventListener('activate', e => {
+self.addEventListener('activate', function(e) {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys().then(function(keys) {
+      return Promise.all(keys.filter(function(k){ return k !== CACHE; })
+        .map(function(k){ return caches.delete(k); }));
+    }).then(function() { return self.clients.claim(); })
   );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', e => {
-  // No interceptar la API de Google
-  if (e.request.url.includes('script.google.com')) return;
-  // Red primero; si responde bien, ACTUALIZAR el cache con la versión fresca.
-  // Así la copia de emergencia nunca queda vieja.
+self.addEventListener('fetch', function(e) {
+  var req = e.request;
+
+  // No interceptar la API de Google ni requests que no sean GET
+  if (req.method !== 'GET') return;
+  if (req.url.indexOf('script.google.com') !== -1) return;
+
+  // Para la página (navegación): pedir SIEMPRE la versión fresca a la red,
+  // salteando también el cache HTTP del navegador.
+  var isNav = req.mode === 'navigate';
+  var netReq = isNav ? new Request(req.url, { cache: 'no-store' }) : req;
+
   e.respondWith(
-    fetch(e.request).then(res => {
-      if (res && res.ok && e.request.method === 'GET') {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, copy));
+    fetch(netReq).then(function(res) {
+      if (res && res.ok) {
+        var copy = res.clone();
+        caches.open(CACHE).then(function(c) { c.put(req, copy); });
       }
       return res;
-    }).catch(() => caches.match(e.request))
+    }).catch(function() {
+      // Solo si no hay internet: servir el último respaldo bueno conocido
+      return caches.match(req).then(function(hit) {
+        if (hit) return hit;
+        if (isNav) return caches.match('/Agroterra-citas/index.html');
+      });
+    })
   );
 });
