@@ -223,6 +223,12 @@
     flex-wrap: wrap;
     align-items: center;
   }
+  #techFilters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
   .filter-label {
     font-size: 11px;
     color: var(--text-dim);
@@ -305,7 +311,7 @@
     font-size: 11px;
   }
   .gantt-head th.th-tech {
-    width: 56px;
+    width: 130px;
     border-right: 1px solid var(--border);
     color: var(--text-dim);
   }
@@ -360,17 +366,23 @@
     color: var(--text-dim);
   }
   td.td-tech {
-    width: 56px;
-    text-align: center;
+    width: 130px;
+    min-width: 130px;
+    max-width: 130px;
+    text-align: left;
+    padding: 0 8px;
     border-right: 1px solid var(--border);
     font-family: 'DM Mono', monospace;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 500;
     color: var(--accent2);
     background: var(--surface);
     position: sticky;
     left: 110px;
     z-index: 9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   td.td-cell {
     min-width: 52px;
@@ -473,6 +485,8 @@
   @media (max-width: 640px) {
     .fab { display: flex; }
     .btn-add { display: none; }
+    td.td-tech { width: 92px; min-width: 92px; max-width: 92px; font-size: 9px; padding: 0 5px; }
+    .gantt-head th.th-tech { width: 92px; }
     header { padding: 0 12px; }
     .toolbar { padding: 8px 12px; }
   }
@@ -1669,7 +1683,7 @@ function renderBody() {
       // Col técnico
       const tdTech = document.createElement('td');
       tdTech.className = 'td-tech';
-      tdTech.textContent = tech.id;
+      tdTech.textContent = tech.name;
       tdTech.title = tech.name;
       row.appendChild(tdTech);
 
@@ -1766,7 +1780,7 @@ function renderTechFilters() {
   TECNICOS.forEach(tech => {
     const chip = document.createElement('div');
     chip.className = 'chip tech-chip ' + (activeTechs.has(tech.id) ? 'active' : '');
-    chip.textContent = tech.id;
+    chip.textContent = tech.name;
     chip.title = tech.name;
     chip.addEventListener('click', () => {
       if (activeTechs.has(tech.id)) {
