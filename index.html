@@ -119,6 +119,21 @@
   }
   .btn-add:hover { opacity: .85; }
 
+  .btn-refresh {
+    background: var(--surface2);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    width: 32px; height: 32px;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: color .15s, border-color .15s;
+  }
+  .btn-refresh:hover { color: var(--accent); border-color: var(--accent); }
+  .btn-refresh.spinning { animation: spin 1s linear infinite; pointer-events: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   /* ── FILTROS ── */
   .toolbar {
     background: var(--surface);
@@ -924,6 +939,7 @@
       <span class="week-label" id="weekLabel">19–23 MAY 2026</span>
       <button id="nextWeek">›</button>
     </div>
+    <button class="btn-refresh" id="btnRefresh" onclick="forceRefresh()" title="Actualizar datos">⟳</button>
     <button class="btn-add" id="btnAddHeader" onclick="openModal()">+ Nueva cita</button>
   </div>
 </header>
@@ -1023,7 +1039,7 @@
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <div class="modal-handle"></div>
-    <div class="modal-title">Nueva cita</div>
+    <div class="modal-title" id="modalTitle">Nueva cita</div>
     <div class="form-grid">
       <div class="form-row">
         <label>Fecha</label>
@@ -1061,8 +1077,9 @@
       <textarea id="fDemora" placeholder="Describí brevemente qué causó la demora..."></textarea>
     </div>
     <div class="modal-actions">
+      <button class="btn-delete" id="btnDelete" onclick="deleteFromModal()" style="display:none;background:transparent;border:1px solid var(--color-DEM);color:var(--color-DEM);border-radius:var(--radius);padding:9px 14px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-right:auto;">Eliminar</button>
       <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
-      <button class="btn-save" onclick="saveTask()">Guardar cita</button>
+      <button class="btn-save" id="btnSave" onclick="saveTask()">Guardar cita</button>
     </div>
   </div>
 </div>
@@ -1189,6 +1206,7 @@ async function loadWeekIfNeeded(monday) {
       tasks = tasks.filter(t => t.date < desde || t.date > hasta);
       tasks.push(...r.data);
       loadedRanges.add(key);
+      lastLoadTs = Date.now();
     }
   } catch(e) {
     console.warn('API no disponible, modo offline:', e.message);
@@ -1212,6 +1230,7 @@ async function loadMonthIfNeeded(year, month) {
       tasks = tasks.filter(t => t.date < desde || t.date > hasta);
       tasks.push(...r.data);
       loadedRanges.add(key);
+      lastLoadTs = Date.now();
     }
   } catch(e) {
     console.warn('API no disponible, modo offline:', e.message);
@@ -1252,6 +1271,55 @@ async function deleteCitaRemote(id) {
   }
 }
 
+// Actualizar cita en Sheets
+async function persistUpdateCita(cita, id) {
+  if (!API_URL || API_URL.startsWith('TU_')) return;
+  try {
+    const r = await jsonpRequest({
+      action:  'updateCita',
+      id:      id,
+      date:    cita.date,
+      tech:    cita.tech,
+      tipo:    cita.tipo,
+      cliente: cita.cliente || '',
+      desc:    cita.desc    || '',
+      start:   cita.start,
+      end:     cita.end,
+      demora:  cita.demora  || '',
+    });
+    if (!r.ok) console.warn('updateCita no disponible en el Apps Script — actualizá el backend');
+  } catch(e) {
+    console.warn('No se pudo actualizar en Sheets:', e.message);
+  }
+}
+
+// ── SINCRONIZACIÓN ──
+let lastLoadTs = 0;
+
+async function forceRefresh() {
+  const btn = document.getElementById('btnRefresh');
+  if (btn) btn.classList.add('spinning');
+  loadedRanges.clear();
+  tasks = [];
+  try {
+    if (currentTab === 'analytics') {
+      await renderAnalytics();
+    } else {
+      await render();
+    }
+    lastLoadTs = Date.now();
+  } finally {
+    if (btn) btn.classList.remove('spinning');
+  }
+}
+
+// Al volver a la pestaña, recargar si pasó más de 1 minuto
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Date.now() - lastLoadTs > 60000) {
+    forceRefresh();
+  }
+});
+
 
 // ── UTILIDADES ──
 function getMonday(d) {
@@ -1268,8 +1336,11 @@ function addDays(d, n) {
   return r;
 }
 function toISO(d) {
-  return d.toISOString().slice(0,10);
+  // Fecha LOCAL (no UTC): evita que después de las 21:00 (UTC-3) el sistema crea que ya es mañana
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
+// Escape de texto de usuario para innerHTML
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function formatDate(d) {
   return d.toLocaleDateString('es-AR',{day:'2-digit',month:'short'}).toUpperCase();
 }
@@ -1429,7 +1500,7 @@ function renderBody() {
               const block = document.createElement('div');
               block.className = `task-block task-${task.tipo}`;
               const label = task.cliente || task.desc || '';
-              block.innerHTML = `<span class="task-type">${task.tipo}</span><span class="task-desc">${label}</span>`;
+              block.innerHTML = `<span class="task-type">${task.tipo}</span><span class="task-desc">${esc(label)}</span>`;
               block.addEventListener('mouseenter', (e) => showTooltip(e, task));
               block.addEventListener('mouseleave', hideTooltip);
               block.addEventListener('click', () => editTask(task));
@@ -1503,8 +1574,15 @@ function renderLegend() {
 }
 
 // ── MODAL ──
-function openModal(dateStr, techId, startTime) {
+let editingId = null;
+
+function openModal(dateStr, techId, startTime, task) {
+  editingId = task ? task.id : null;
   document.getElementById('modalOverlay').classList.add('open');
+  document.getElementById('modalTitle').textContent = task ? 'Editar cita' : 'Nueva cita';
+  document.getElementById('btnSave').textContent = task ? 'Guardar cambios' : 'Guardar cita';
+  document.getElementById('btnDelete').style.display = task ? 'block' : 'none';
+
   const today = dateStr || toISO(currentMonday);
   document.getElementById('fDate').value = today;
 
@@ -1517,12 +1595,22 @@ function openModal(dateStr, techId, startTime) {
   const endSel = document.getElementById('fEnd');
   startSel.innerHTML = HOURS.map(h => `<option value="${h}" ${h===startTime?'selected':''}>${h}</option>`).join('');
   endSel.innerHTML = HOURS.map(h => `<option value="${h}">${h}</option>`).join('');
-  endSel.value = startTime ? HOURS[Math.min(slotIndex(startTime)+4, HOURS.length-1)] : '12:00';
+
+  if (task) {
+    endSel.value = task.end;
+    selectedTipo = task.tipo;
+    document.getElementById('fCliente').value = (task.tipo==='NO') ? '' : (task.cliente || '');
+    document.getElementById('fDesc').value = task.desc || '';
+    document.getElementById('fDemora').value = task.demora || '';
+  } else {
+    endSel.value = startTime ? HOURS[Math.min(slotIndex(startTime)+4, HOURS.length-1)] : '12:00';
+  }
 
   renderTipoGrid();
 }
 
 function closeModal() {
+  editingId = null;
   document.getElementById('modalOverlay').classList.remove('open');
   document.getElementById('fCliente').value = '';
   document.getElementById('fDesc').value = '';
@@ -1564,6 +1652,40 @@ async function saveTask() {
   if (selectedTipo === 'DEM' && !demora) { alert('Describí el motivo de la demora'); return; }
   if (slotIndex(start) >= slotIndex(end)) { alert('La hora de fin debe ser mayor a la de inicio'); return; }
 
+  // ── Validación de solapamiento ──
+  const si = slotIndex(start), ei = slotIndex(end);
+  const clash = tasks.find(t =>
+    t.date === date && t.tech === tech && t.id !== editingId &&
+    t.tipo !== 'DEM' && selectedTipo !== 'DEM' &&
+    slotIndex(t.start) < ei && slotIndex(t.end) > si
+  );
+  if (clash) {
+    const techName = TECNICOS.find(t=>t.id===tech)?.name || tech;
+    if (!confirm(`⚠ SOLAPAMIENTO\n\n${techName} ya tiene "${clash.cliente}${clash.desc?' · '+clash.desc:''}" de ${clash.start} a ${clash.end} ese día.\n\n¿Guardar igual la cita superpuesta?`)) return;
+  }
+
+  if (editingId) {
+    // ── Modo edición ──
+    const idx = tasks.findIndex(t => t.id === editingId);
+    if (idx > -1) {
+      const cita = tasks[idx];
+      Object.assign(cita, {
+        date, tech, start, end,
+        tipo:    selectedTipo,
+        cliente: selectedTipo === 'NO' ? 'No disponible' : cliente,
+        desc,
+        demora:  selectedTipo === 'DEM' ? demora : '',
+      });
+      const idToUpdate = editingId;
+      closeModal();
+      renderBody();
+      persistUpdateCita(cita, idToUpdate);
+    } else {
+      closeModal();
+    }
+    return;
+  }
+
   const cita = {
     id:      'local_' + Date.now(),
     date, tech,
@@ -1587,22 +1709,19 @@ async function saveTask() {
   if (idx > -1) tasks[idx].id = realId;
 }
 
-function editTask(task) {
-  const tipo = TIPOS.find(t=>t.id===task.tipo);
-  const msg = [
-    `📋 ${task.cliente}${task.desc?' · '+task.desc:''}`,
-    `Tipo: ${tipo?.label||task.tipo}  |  Téc: ${task.tech}`,
-    `Horario: ${task.start} – ${task.end}`,
-    task.demora ? `⚠ Demora: ${task.demora}` : '',
-    '',
-    '¿Eliminar esta cita?'
-  ].filter(Boolean).join('\n');
+function deleteFromModal() {
+  if (!editingId) return;
+  const task = tasks.find(t => t.id === editingId);
+  if (!task) { closeModal(); return; }
+  if (!confirm(`¿Eliminar la cita de ${task.cliente || task.desc || task.tech}?\n${task.date} · ${task.start}–${task.end}`)) return;
+  tasks = tasks.filter(t => t.id !== editingId);
+  deleteCitaRemote(task.id);
+  closeModal();
+  renderBody();
+}
 
-  if (confirm(msg)) {
-    tasks = tasks.filter(t => t.id !== task.id);
-    renderBody();
-    deleteCitaRemote(task.id);
-  }
+function editTask(task) {
+  openModal(task.date, task.tech, task.start, task);
 }
 
 // ── TOOLTIP ──
@@ -1611,9 +1730,9 @@ function showTooltip(e, task) {
   const tipo = TIPOS.find(t=>t.id===task.tipo);
   document.getElementById('ttTitle').textContent = task.cliente || task.desc || '';
   document.getElementById('ttMeta').innerHTML = `
-    ${task.desc ? `<span style="color:var(--text)">${task.desc}</span><br>` : ''}
+    ${task.desc ? `<span style="color:var(--text)">${esc(task.desc)}</span><br>` : ''}
     ${tipo?.label || task.tipo} &nbsp;·&nbsp; ${task.tech} &nbsp;·&nbsp; ${task.start}–${task.end}
-    ${task.demora ? `<br><span style="color:var(--color-DEM);margin-top:4px;display:block">⚠ ${task.demora}</span>` : ''}
+    ${task.demora ? `<br><span style="color:var(--color-DEM);margin-top:4px;display:block">⚠ ${esc(task.demora)}</span>` : ''}
   `;
   tt.style.display = 'block';
   moveTooltip(e);
@@ -1842,7 +1961,7 @@ function renderClienteBars(pts) {
   sorted.forEach(([cli, cnt]) => {
     const pct = Math.round(cnt/max*100);
     container.innerHTML += `<div class="bar-item">
-      <span class="bar-item-label cliente" title="${cli}">${cli}</span>
+      <span class="bar-item-label cliente" title="${esc(cli)}">${esc(cli)}</span>
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:rgba(62,207,207,.15);color:var(--accent2);border-left:2px solid var(--accent2)">${cnt>1?cnt+' citas':''}</div></div>
       <span class="bar-val">${cnt}</span>
     </div>`;
@@ -1861,8 +1980,8 @@ function renderDemoras(pts) {
   tbody.innerHTML = demoras.map(t=>`<tr>
     <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${t.date}</td>
     <td><span class="dem-tech">${t.tech}</span></td>
-    <td style="font-size:11px">${t.cliente}</td>
-    <td><span class="dem-motivo">${t.demora||'—'}</span></td>
+    <td style="font-size:11px">${esc(t.cliente)}</td>
+    <td><span class="dem-motivo">${esc(t.demora)||'—'}</span></td>
   </tr>`).join('');
 }
 
