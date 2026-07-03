@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tablero de Citas — Agroterra</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#f5a623">
 <meta name="mobile-web-app-capable" content="yes">
@@ -44,9 +44,10 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
+    font-variant-numeric: tabular-nums;
     background: var(--bg);
     color: var(--text);
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 14px;
     min-height: 100vh;
     overflow-x: hidden;
@@ -66,7 +67,7 @@
     gap: 12px;
   }
   .logo {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 800;
     font-size: 15px;
     letter-spacing: 0.05em;
@@ -97,7 +98,7 @@
   }
   .week-nav button:hover { color: var(--accent); }
   .week-label {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 12px;
     color: var(--text);
     white-space: nowrap;
@@ -108,7 +109,7 @@
     border: none;
     border-radius: var(--radius);
     padding: 7px 14px;
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 700;
     font-size: 13px;
     cursor: pointer;
@@ -138,7 +139,7 @@
   .month-board { padding: 14px 16px 50px; max-width: 1300px; margin: 0 auto; }
   .mb-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
   .mb-dow {
-    font-family: 'DM Mono', monospace; font-size: 10px;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 10px;
     color: var(--text-dim); text-align: center;
     padding: 4px 0; letter-spacing: .06em;
   }
@@ -153,7 +154,7 @@
   .mb-day.today { border-color: var(--accent); }
   .mb-day.weekend { opacity: .55; }
   .mb-num {
-    font-family: 'DM Mono', monospace; font-size: 10px;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 10px;
     color: var(--text-dim); display: flex; justify-content: space-between;
     flex-shrink: 0;
   }
@@ -202,7 +203,7 @@
   body.tv-mode .mb-day { min-height: 110px; }
   .tv-badge {
     display: none;
-    font-family: 'DM Mono', monospace; font-size: 13px;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 13px;
     color: var(--text-dim); align-items: center; gap: 12px;
   }
   body.tv-mode .tv-badge { display: flex; }
@@ -232,7 +233,7 @@
   .filter-label {
     font-size: 11px;
     color: var(--text-dim);
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     letter-spacing: .05em;
     text-transform: uppercase;
   }
@@ -267,7 +268,7 @@
   .legend-item {
     display: flex; align-items: center; gap: 5px;
     font-size: 11px; color: var(--text-dim);
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
   .legend-dot {
     width: 8px; height: 8px;
@@ -290,7 +291,7 @@
     background: var(--surface);
     border-bottom: 2px solid var(--border);
     padding: 0;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 10px;
     color: var(--text-dim);
     font-weight: 500;
@@ -307,7 +308,7 @@
     padding-left: 12px;
     border-right: 1px solid var(--border);
     color: var(--text);
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 11px;
   }
   .gantt-head th.th-tech {
@@ -355,13 +356,13 @@
     background: var(--bg);
   }
   .day-name {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 700;
     font-size: 11px;
     color: var(--text);
   }
   .day-date {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 10px;
     color: var(--text-dim);
   }
@@ -372,7 +373,7 @@
     text-align: left;
     padding: 0 8px;
     border-right: 1px solid var(--border);
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 10.5px;
     font-weight: 500;
     color: var(--accent2);
@@ -414,7 +415,7 @@
     z-index: 5;
   }
   .task-block .task-type {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 500;
     font-size: 9px;
     opacity: .75;
@@ -522,7 +523,7 @@
     margin: 0 auto 16px;
   }
   .modal-title {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 700;
     font-size: 16px;
     margin-bottom: 16px;
@@ -534,7 +535,7 @@
   .form-row label {
     display: block;
     font-size: 11px;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     color: var(--text-dim);
     text-transform: uppercase;
     letter-spacing: .05em;
@@ -548,7 +549,7 @@
     color: var(--text);
     padding: 9px 12px;
     font-size: 14px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     outline: none;
     transition: border-color .15s;
     -webkit-appearance: none;
@@ -573,7 +574,7 @@
     border: 1px solid var(--border);
     background: var(--bg);
     color: var(--text-dim);
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -607,7 +608,7 @@
     color: var(--text);
     padding: 9px 12px;
     font-size: 13px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     resize: none;
     min-height: 60px;
     outline: none;
@@ -616,7 +617,7 @@
   .demora-field label {
     display: block;
     font-size: 11px;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     color: var(--color-DEM);
     text-transform: uppercase;
     letter-spacing: .05em;
@@ -631,7 +632,7 @@
     background: var(--bg); border: 1px solid var(--border);
     border-radius: var(--radius); color: var(--text-dim);
     font-size: 14px; cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     transition: border-color .15s;
   }
   .btn-cancel:hover { border-color: var(--text-dim); }
@@ -639,7 +640,7 @@
     flex: 2; padding: 11px;
     background: var(--accent); border: none;
     border-radius: var(--radius); color: #0f1117;
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 700; font-size: 14px;
     cursor: pointer; transition: opacity .15s;
   }
@@ -660,7 +661,7 @@
     display: none;
   }
   .tooltip-title {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 700;
     font-size: 13px;
     margin-bottom: 4px;
@@ -697,7 +698,7 @@
   }
   .nav-tab {
     padding: 10px 18px;
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 700;
     font-size: 12px;
     letter-spacing: .04em;
@@ -722,7 +723,7 @@
     margin-bottom: 20px; flex-wrap: wrap;
   }
   .analytics-title {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 800; font-size: 18px;
     color: var(--text);
   }
@@ -736,7 +737,7 @@
   }
   .period-btn {
     padding: 6px 16px;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 11px; font-weight: 500;
     background: none; border: none;
     color: var(--text-dim); cursor: pointer;
@@ -758,7 +759,7 @@
   }
   .period-nav button:hover { color: var(--accent); }
   .period-nav span {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 12px; color: var(--text);
     white-space: nowrap;
   }
@@ -788,13 +789,13 @@
   .kpi-card.kpi-info::before { background: var(--accent2); }
   .kpi-card.kpi-neu::before  { background: var(--color-I); }
   .kpi-label {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 10px; color: var(--text-dim);
     text-transform: uppercase; letter-spacing: .05em;
     margin-bottom: 6px;
   }
   .kpi-value {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 800; font-size: 28px;
     color: var(--text); line-height: 1;
   }
@@ -821,14 +822,14 @@
   }
   .chart-card.full { grid-column: 1 / -1; }
   .chart-title {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 700; font-size: 12px;
     letter-spacing: .04em; color: var(--text);
     margin-bottom: 14px; text-transform: uppercase;
   }
   .chart-title span {
     color: var(--text-dim); font-weight: 600;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 11px; text-transform: none;
     margin-left: 6px;
   }
@@ -837,7 +838,7 @@
   .bar-list { display: flex; flex-direction: column; gap: 8px; }
   .bar-item { display: flex; align-items: center; gap: 10px; }
   .bar-item-label {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 11px; color: var(--text-dim);
     width: 34px; flex-shrink: 0; text-align: right;
   }
@@ -857,12 +858,12 @@
     transition: width .6s cubic-bezier(.4,0,.2,1);
     display: flex; align-items: center;
     padding-left: 8px;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 10px; font-weight: 500;
     white-space: nowrap; overflow: hidden;
   }
   .bar-val {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 11px; color: var(--text-dim);
     width: 36px; text-align: right; flex-shrink: 0;
   }
@@ -885,7 +886,7 @@
   }
   .donut-item-pct {
     margin-left: auto;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 11px; color: var(--text-dim);
   }
 
@@ -896,7 +897,7 @@
     width: 100%; min-width: 400px;
   }
   .heatmap-table th {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 9px; color: var(--text-dim);
     padding: 4px 3px; text-align: center;
     font-weight: 400;
@@ -927,7 +928,7 @@
     font-size: 12px;
   }
   .demoras-table th {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 10px; color: var(--text-dim);
     text-transform: uppercase; letter-spacing: .04em;
     padding: 6px 10px; border-bottom: 1px solid var(--border);
@@ -940,7 +941,7 @@
   }
   .demoras-table tr:last-child td { border-bottom: none; }
   .dem-tech {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 500; color: var(--accent2);
     font-size: 12px;
   }
@@ -958,7 +959,7 @@
   }
   .cal-dow {
     text-align: center;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 10px; color: var(--text-dim);
     padding: 4px 0; letter-spacing: .04em;
   }
@@ -976,7 +977,7 @@
   .cal-day.empty { background: transparent; border-color: transparent; cursor: default; }
   .cal-day.today { border-color: var(--accent); }
   .cal-day-num {
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 11px; color: var(--text-dim);
     margin-bottom: 4px;
   }
@@ -988,7 +989,7 @@
   }
   .cal-count {
     position: absolute; bottom: 4px; right: 6px;
-    font-family: 'DM Mono', monospace;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-size: 10px; color: var(--text-dim);
   }
 </style>
@@ -1006,17 +1007,17 @@
     display: flex; align-items: baseline; gap: 8px;
   }
   .day-name-big {
-    font-family: 'Syne', sans-serif;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 800; font-size: 13px; color: var(--text);
   }
   .day-badge-hoy {
     background: var(--accent); color: #0f1117;
-    font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 9px; font-weight: 500;
     padding: 1px 6px; border-radius: 10px;
     letter-spacing: .05em; text-transform: uppercase;
   }
   .day-count {
-    font-family: 'DM Mono', monospace; font-size: 10px;
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 10px;
     color: var(--text-dim); margin-left: auto;
   }
 </style>
@@ -1183,7 +1184,7 @@
       <textarea id="fDemora" placeholder="Describí brevemente qué causó la demora..."></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn-delete" id="btnDelete" onclick="deleteFromModal()" style="display:none;background:transparent;border:1px solid var(--color-DEM);color:var(--color-DEM);border-radius:var(--radius);padding:9px 14px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-right:auto;">Eliminar</button>
+      <button class="btn-delete" id="btnDelete" onclick="deleteFromModal()" style="display:none;background:transparent;border:1px solid var(--color-DEM);color:var(--color-DEM);border-radius:var(--radius);padding:9px 14px;font-family:'Inter',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-right:auto;">Eliminar</button>
       <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
       <button class="btn-save" id="btnSave" onclick="saveTask()">Guardar cita</button>
     </div>
@@ -1295,7 +1296,7 @@ function showLoading(msg) {
     el.id = 'loadingBar';
     el.style.cssText = `position:fixed;top:56px;left:0;right:0;z-index:500;
       background:var(--surface);border-bottom:1px solid var(--border);
-      padding:8px 16px;font-family:'DM Mono',monospace;font-size:11px;
+      padding:8px 16px;font-family:'Inter',sans-serif;font-size:11px;
       color:var(--accent);display:flex;align-items:center;gap:10px;`;
     el.innerHTML = `<span style="animation:spin 1s linear infinite;display:inline-block">⟳</span><span id="loadingMsg"></span>`;
     document.body.appendChild(el);
@@ -1653,7 +1654,7 @@ function renderBody() {
       const td = document.createElement('td');
       td.style.cssText = `min-width:52px;border-right:1px solid ${h.endsWith(':00') && i>0 ? 'var(--border)' : 'rgba(42,48,72,.3)'};background:var(--surface);padding:0;`;
       td.innerHTML = h.endsWith(':00')
-        ? `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--text-dim);display:block;text-align:center;padding:3px 0;">${h}</span>`
+        ? `<span style="font-family:'Inter',sans-serif;font-size:9px;color:var(--text-dim);display:block;text-align:center;padding:3px 0;">${h}</span>`
         : '';
       hoursRow.appendChild(td);
     });
@@ -2161,7 +2162,7 @@ function renderDonut(pts) {
       <title>${tipo}: ${cnt}</title></path>`;
     startAngle = endAngle;
   });
-  svg.innerHTML = paths + `<text x="${CX}" y="${CY+4}" text-anchor="middle" font-family="Syne,sans-serif" font-weight="800" font-size="14" fill="#e8eaf0">${total}</text>`;
+  svg.innerHTML = paths + `<text x="${CX}" y="${CY+4}" text-anchor="middle" font-family="Inter,sans-serif" font-weight="800" font-size="14" fill="#e8eaf0">${total}</text>`;
 
   legend.innerHTML = entries.map(([tipo,cnt])=>{
     const tinfo = TIPOS.find(t=>t.id===tipo);
@@ -2225,7 +2226,7 @@ function renderDemoras(pts) {
     return;
   }
   tbody.innerHTML = demoras.map(t=>`<tr>
-    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${t.date}</td>
+    <td style="font-family:'Inter',sans-serif;font-size:11px;color:var(--text-dim)">${t.date}</td>
     <td><span class="dem-tech">${t.tech}</span></td>
     <td style="font-size:11px">${esc(t.cliente)}</td>
     <td><span class="dem-motivo">${esc(t.demora)||'—'}</span></td>
