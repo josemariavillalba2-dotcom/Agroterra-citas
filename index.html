@@ -134,6 +134,46 @@
   .btn-refresh.spinning { animation: spin 1s linear infinite; pointer-events: none; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ── VISTA MENSUAL DEL TABLERO ── */
+  .month-board { padding: 14px 16px 50px; max-width: 1300px; margin: 0 auto; }
+  .mb-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .mb-dow {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--text-dim); text-align: center;
+    padding: 4px 0; letter-spacing: .06em;
+  }
+  .mb-day {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); min-height: 96px;
+    padding: 5px; display: flex; flex-direction: column; gap: 3px;
+    cursor: pointer; transition: border-color .15s;
+  }
+  .mb-day:hover { border-color: var(--text-dim); }
+  .mb-day.empty { background: transparent; border-color: transparent; cursor: default; min-height: 0; }
+  .mb-day.today { border-color: var(--accent); }
+  .mb-day.weekend { opacity: .55; }
+  .mb-num {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--text-dim); display: flex; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .mb-day.today .mb-num { color: var(--accent); font-weight: 700; }
+  .mb-pills { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; max-height: 150px; }
+  .mb-pill {
+    font-size: 9.5px; line-height: 1.3; padding: 2px 4px;
+    border-radius: 3px; border-left: 2px solid;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .mb-pill:hover { filter: brightness(1.3); }
+  @media (max-width: 700px) {
+    .month-board { padding: 8px 6px 40px; }
+    .mb-grid { gap: 3px; }
+    .mb-day { min-height: 60px; padding: 3px; }
+    .mb-pill { font-size: 8px; padding: 1px 3px; }
+    .mb-pills { max-height: 110px; }
+  }
+
   /* ── FILTROS ── */
   .toolbar {
     background: var(--surface);
@@ -934,6 +974,10 @@
 <header>
   <div class="logo">AGROTERRA <span>/ Citas</span></div>
   <div class="header-right">
+    <div class="period-toggle" id="boardViewToggle" style="margin-left:0">
+      <button class="period-btn active" id="vwSemana" onclick="setBoardView('semana')">SEMANA</button>
+      <button class="period-btn" id="vwMes" onclick="setBoardView('mes')">MES</button>
+    </div>
     <div class="week-nav" id="weekNavEl">
       <button id="prevWeek">‹</button>
       <span class="week-label" id="weekLabel">19–23 MAY 2026</span>
@@ -969,6 +1013,11 @@
     <tbody id="ganttBody"></tbody>
   </table>
 </div>
+<!-- VISTA MENSUAL -->
+<div class="month-board" id="monthBoard" style="display:none">
+  <div class="mb-grid" id="mbGrid"></div>
+</div>
+
 </div><!-- /tableroPanel -->
 
 <!-- ANALYTICS PANEL -->
@@ -1359,17 +1408,95 @@ function slotIndex(time) {
 function timeFromSlot(i) { return HOURS[i] || '17:00'; }
 
 // ── RENDER ──
+let boardView = 'semana';
+let boardMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
 async function render() {
-  await loadWeekIfNeeded(currentMonday);
-  renderWeekLabel();
-  renderHead();
-  renderBody();
+  if (boardView === 'mes') {
+    await loadMonthIfNeeded(boardMonth.getFullYear(), boardMonth.getMonth());
+    renderWeekLabel();
+    renderMonthBoard();
+  } else {
+    await loadWeekIfNeeded(currentMonday);
+    renderWeekLabel();
+    renderHead();
+    renderBody();
+  }
+}
+
+// Repintar la vista activa (tras crear/editar/eliminar/filtrar)
+function repaint() {
+  if (boardView === 'mes') renderMonthBoard();
+  else renderBody();
+}
+
+function setBoardView(v) {
+  boardView = v;
+  document.getElementById('vwSemana').classList.toggle('active', v==='semana');
+  document.getElementById('vwMes').classList.toggle('active', v==='mes');
+  document.querySelector('.gantt-wrapper').style.display = v==='semana' ? '' : 'none';
+  document.getElementById('monthBoard').style.display = v==='mes' ? 'block' : 'none';
+  render();
 }
 
 function renderWeekLabel() {
+  if (boardView === 'mes') {
+    document.getElementById('weekLabel').textContent =
+      boardMonth.toLocaleDateString('es-AR',{month:'long',year:'numeric'}).toUpperCase();
+    return;
+  }
   const fri = addDays(currentMonday, 4);
   document.getElementById('weekLabel').textContent =
     `${formatDate(currentMonday)} – ${formatDate(fri)}`;
+}
+
+// ── VISTA MENSUAL ──
+function renderMonthBoard() {
+  const y = boardMonth.getFullYear(), m = boardMonth.getMonth();
+  const firstDay = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const offset = firstDay===0 ? 6 : firstDay-1; // lunes primero
+  const grid = document.getElementById('mbGrid');
+
+  let html = '';
+  ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'].forEach(d => html += `<div class="mb-dow">${d}</div>`);
+  for (let i=0; i<offset; i++) html += '<div class="mb-day empty"></div>';
+
+  for (let d=1; d<=daysInMonth; d++) {
+    const iso = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(y, m, d).getDay();
+    const dayTasks = tasks
+      .filter(t => t.date===iso && t.tipo!=='NO' && activeTechs.has(t.tech))
+      .sort((a,b) => a.start < b.start ? -1 : a.start > b.start ? 1 : 0);
+    const today = isToday(iso);
+
+    const pills = dayTasks.map(t => {
+      const color = TIPO_COLORS[t.tipo] || '#888';
+      const label = `${t.start} ${t.tech} · ${esc(t.cliente || t.desc || '')}`;
+      return `<div class="mb-pill" data-id="${esc(t.id)}"
+        style="background:${color}22;color:${color};border-color:${color}"
+        title="${esc(t.cliente||'')} · ${t.start}–${t.end} · ${t.tech}${t.desc?' · '+esc(t.desc):''}">${label}</div>`;
+    }).join('');
+
+    html += `<div class="mb-day${today?' today':''}${(dow===0||dow===6)?' weekend':''}" data-date="${iso}">
+      <div class="mb-num"><span>${d}</span>${dayTasks.length ? `<span>${dayTasks.length}</span>` : ''}</div>
+      <div class="mb-pills">${pills}</div>
+    </div>`;
+  }
+  grid.innerHTML = html;
+
+  // Click en pastilla → editar cita
+  grid.querySelectorAll('.mb-pill').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const t = tasks.find(x => String(x.id) === el.dataset.id);
+      if (t) editTask(t);
+    });
+  });
+  // Click en día → nueva cita en esa fecha
+  grid.querySelectorAll('.mb-day:not(.empty)').forEach(el => {
+    el.addEventListener('click', () => openModal(el.dataset.date, undefined, '08:00'));
+  });
 }
 
 function renderHead() {
@@ -1540,7 +1667,7 @@ function renderTechFilters() {
   allChip.addEventListener('click', () => {
     TECNICOS.forEach(t => activeTechs.add(t.id));
     renderTechFilters();
-    renderBody();
+    repaint();
   });
   container.appendChild(allChip);
 
@@ -1556,7 +1683,7 @@ function renderTechFilters() {
         activeTechs.add(tech.id);
       }
       renderTechFilters();
-      renderBody();
+      repaint();
     });
     container.appendChild(chip);
   });
@@ -1678,7 +1805,7 @@ async function saveTask() {
       });
       const idToUpdate = editingId;
       closeModal();
-      renderBody();
+      repaint();
       persistUpdateCita(cita, idToUpdate);
     } else {
       closeModal();
@@ -1700,7 +1827,7 @@ async function saveTask() {
 
   // Optimistic: mostrar de inmediato
   tasks.push(cita);
-  renderBody();
+  repaint();
 
   // Persistir en background
   const realId = await persistCita(cita);
@@ -1717,7 +1844,7 @@ function deleteFromModal() {
   tasks = tasks.filter(t => t.id !== editingId);
   deleteCitaRemote(task.id);
   closeModal();
-  renderBody();
+  repaint();
 }
 
 function editTask(task) {
@@ -1751,11 +1878,13 @@ document.addEventListener('mousemove', e => {
 
 // ── NAV SEMANA ──
 document.getElementById('prevWeek').addEventListener('click', () => {
-  currentMonday = addDays(currentMonday, -7);
+  if (boardView === 'mes') boardMonth = new Date(boardMonth.getFullYear(), boardMonth.getMonth()-1, 1);
+  else currentMonday = addDays(currentMonday, -7);
   render();
 });
 document.getElementById('nextWeek').addEventListener('click', () => {
-  currentMonday = addDays(currentMonday, 7);
+  if (boardView === 'mes') boardMonth = new Date(boardMonth.getFullYear(), boardMonth.getMonth()+1, 1);
+  else currentMonday = addDays(currentMonday, 7);
   render();
 });
 
@@ -1803,6 +1932,7 @@ function switchTab(tab) {
   document.getElementById('tableroPanel').classList.toggle('hidden', tab!=='tablero');
   document.getElementById('analyticsPanel').classList.toggle('visible', tab==='analytics');
   document.getElementById('weekNavEl').style.display = tab==='tablero' ? 'flex' : 'none';
+  document.getElementById('boardViewToggle').style.display = tab==='tablero' ? 'flex' : 'none';
   document.getElementById('btnAddHeader').style.display = tab==='tablero' ? 'flex' : 'none';
   if (tab==='analytics') renderAnalytics();
 }
@@ -1926,134 +2056,4 @@ function renderDonut(pts) {
   }).join('');
 }
 
-// ── Barras técnicos ──
-function renderTechBars(pts) {
-  const horasPorTech = {};
-  TECNICOS.forEach(t => horasPorTech[t.id]=0);
-  pts.filter(t=>t.tipo!=='DEM').forEach(t => { horasPorTech[t.tech]=(horasPorTech[t.tech]||0)+taskHours(t); });
-  const max = Math.max(...Object.values(horasPorTech), 1);
-  document.getElementById('techHoursLabel').textContent = '— horas asignadas';
-  const container = document.getElementById('techBars');
-  container.innerHTML = '';
-  TECNICOS.forEach(tech => {
-    const h = horasPorTech[tech.id]||0;
-    const pct = Math.round(h/max*100);
-    const color = h > max*0.8 ? '#ef4444' : h > max*0.5 ? '#f5a623' : '#4caf82';
-    container.innerHTML += `<div class="bar-item">
-      <span class="bar-item-label">${tech.id}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}22;color:${color};border-left:2px solid ${color}">${h>0?h.toFixed(1)+'h':''}</div></div>
-      <span class="bar-val">${h.toFixed(1)}h</span>
-    </div>`;
-  });
-}
-
-// ── Top clientes ──
-function renderClienteBars(pts) {
-  const cnts = {};
-  pts.filter(t=>t.tipo!=='DEM'&&t.cliente&&t.cliente!=='NO DISPONIBLE')
-    .forEach(t=>{ cnts[t.cliente]=(cnts[t.cliente]||0)+1; });
-  const sorted = Object.entries(cnts).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const max = sorted[0]?.[1]||1;
-  document.getElementById('topClientesLabel').textContent = `— top ${sorted.length}`;
-  const container = document.getElementById('clienteBars');
-  container.innerHTML = '';
-  if (!sorted.length) { container.innerHTML='<div class="dem-empty">Sin datos en el período</div>'; return; }
-  sorted.forEach(([cli, cnt]) => {
-    const pct = Math.round(cnt/max*100);
-    container.innerHTML += `<div class="bar-item">
-      <span class="bar-item-label cliente" title="${esc(cli)}">${esc(cli)}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:rgba(62,207,207,.15);color:var(--accent2);border-left:2px solid var(--accent2)">${cnt>1?cnt+' citas':''}</div></div>
-      <span class="bar-val">${cnt}</span>
-    </div>`;
-  });
-}
-
-// ── Tabla demoras ──
-function renderDemoras(pts) {
-  const demoras = pts.filter(t=>t.tipo==='DEM');
-  document.getElementById('demorasCount').textContent = `— ${demoras.length}`;
-  const tbody = document.getElementById('demorasBody');
-  if (!demoras.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="dem-empty">✓ Sin demoras en el período</td></tr>';
-    return;
-  }
-  tbody.innerHTML = demoras.map(t=>`<tr>
-    <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim)">${t.date}</td>
-    <td><span class="dem-tech">${t.tech}</span></td>
-    <td style="font-size:11px">${esc(t.cliente)}</td>
-    <td><span class="dem-motivo">${esc(t.demora)||'—'}</span></td>
-  </tr>`).join('');
-}
-
-// ── Heatmap de carga ──
-function renderHeatmap(pts) {
-  // Filas = técnicos, Cols = franjas horarias de 1h (08-17)
-  const hourLabels = ['08','09','10','11','12','13','14','15','16','17'];
-  const hmap = {};
-  TECNICOS.forEach(tech => {
-    hmap[tech.id] = {};
-    hourLabels.forEach(h => hmap[tech.id][h]=0);
-  });
-  pts.filter(t=>t.tipo!=='DEM').forEach(t => {
-    const si = slotIndex(t.start), ei = Math.min(slotIndex(t.end), HOURS.length);
-    for (let s=si; s<ei; s++) {
-      const h = HOURS[s].slice(0,2);
-      if (hmap[t.tech] && hmap[t.tech][h]!==undefined) hmap[t.tech][h]++;
-    }
-  });
-  const maxVal = Math.max(...TECNICOS.flatMap(tech => hourLabels.map(h=>hmap[tech.id][h])), 1);
-
-  let html = '<table class="heatmap-table"><thead><tr>';
-  html += '<th class="hm-day">TÉC</th>';
-  hourLabels.forEach(h => html += `<th>${h}h</th>`);
-  html += '</tr></thead><tbody>';
-
-  TECNICOS.forEach(tech => {
-    html += `<tr><th class="hm-day">${tech.id}</th>`;
-    hourLabels.forEach(h => {
-      const v = hmap[tech.id][h];
-      const lvl = v===0?0:Math.min(5, Math.ceil(v/maxVal*5));
-      html += `<td class="hm-${lvl}" title="${tech.id} ${h}h: ${v} citas"></td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  document.getElementById('heatmapWrap').innerHTML = html;
-}
-
-// ── Calendario mensual ──
-function renderCalendar(pts) {
-  const countsByDay = {};
-  pts.forEach(t => { countsByDay[t.date]=(countsByDay[t.date]||[]); countsByDay[t.date].push(t.tipo); });
-  const y=analyticsMonth.getFullYear(), m=analyticsMonth.getMonth();
-  const firstDay = new Date(y,m,1).getDay();
-  const daysInMonth = new Date(y,m+1,0).getDate();
-  const offset = firstDay===0?6:firstDay-1; // lunes primero
-
-  let html = '';
-  ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'].forEach(d => html+=`<div class="cal-dow">${d}</div>`);
-  for(let i=0;i<offset;i++) html+=`<div class="cal-day empty"></div>`;
-
-  for(let d=1;d<=daysInMonth;d++) {
-    const iso=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const tipos = countsByDay[iso]||[];
-    const today = iso===toISO(new Date());
-    const dots = [...new Set(tipos)].slice(0,6).map(t=>`<div class="cal-dot" style="background:${TIPO_COLORS[t]||'#888'}" title="${t}"></div>`).join('');
-    html+=`<div class="cal-day${today?' today':''}">
-      <div class="cal-day-num">${d}</div>
-      <div class="cal-dots">${dots}</div>
-      ${tipos.length>0?`<div class="cal-count">${tipos.length}</div>`:''}
-    </div>`;
-  }
-  document.getElementById('calGrid').innerHTML = html;
-}
-
-// ── SERVICE WORKER ──
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
-  });
-}
-</script>
-</body>
-</html>
+//
