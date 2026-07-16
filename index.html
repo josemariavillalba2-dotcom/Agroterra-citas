@@ -1338,7 +1338,12 @@
         <select id="fEnd"></select>
       </div>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="rowTrabajo">
+      <label>Trabajo (del pizarrón de Taller)</label>
+      <select id="fTrabajo"></select>
+      <div style="font-size:10.5px;color:var(--text-dim);margin-top:4px;">¿No está en la lista? Crealo primero en la pestaña 🔧 Taller.</div>
+    </div>
+    <div class="form-row" id="rowCliente">
       <label>Cliente</label>
       <input type="text" id="fCliente" placeholder="Ej: FINLAR, CUENCA, FUNDAC RACHEL">
     </div>
@@ -1572,6 +1577,7 @@ async function persistCita(cita) {
       start:   cita.start,
       end:     cita.end,
       demora:  cita.demora  || '',
+      trabajo: cita.trabajo || '',
     });
     if (r.ok) return r.id;
   } catch(e) {
@@ -1605,6 +1611,7 @@ async function persistUpdateCita(cita, id) {
       start:   cita.start,
       end:     cita.end,
       demora:  cita.demora  || '',
+      trabajo: cita.trabajo || '',
     });
     if (!r.ok) console.warn('updateCita no disponible en el Apps Script — actualizá el backend');
   } catch(e) {
@@ -1998,7 +2005,24 @@ function openModal(dateStr, techId, startTime, task) {
     endSel.value = startTime ? HOURS[Math.min(slotIndex(startTime)+4, HOURS.length-1)] : '12:00';
   }
 
+  // Poblar el selector de trabajos (cargándolos si aún no se trajeron)
+  const preId = task ? (task.trabajo || '') : '';
+  const legacy = !!task && !task.trabajo;  // cita vieja sin trabajo vinculado
+  fillTrabajoSelect(preId, legacy);
+  if (!trabajosLoaded) {
+    loadTrabajosSilent().then(function(){ fillTrabajoSelect(preId, legacy); });
+  }
+
   renderTipoGrid();
+}
+
+// Carga de trabajos sin tocar la UI del taller
+async function loadTrabajosSilent() {
+  if (trabajosLoaded || !API_URL || API_URL.startsWith('TU_')) return;
+  try {
+    const r = await jsonpRequest({ action: 'getTrabajos' });
+    if (r.ok) { trabajos = r.data || []; trabajosLoaded = true; }
+  } catch(e) {}
 }
 
 function closeModal() {
@@ -2008,6 +2032,46 @@ function closeModal() {
   document.getElementById('fDesc').value = '';
   document.getElementById('fDemora').value = '';
   document.getElementById('demoraField').classList.remove('visible');
+}
+
+// Tipos que NO requieren un trabajo del pizarrón (se cargan manual)
+const TIPOS_SIN_TRABAJO = ['C','DEM','NO'];
+
+function requiereTrabajo() { return TIPOS_SIN_TRABAJO.indexOf(selectedTipo) === -1; }
+
+function updateCitaFields() {
+  const conTrabajo = requiereTrabajo();
+  document.getElementById('rowTrabajo').style.display = conTrabajo ? 'block' : 'none';
+  document.getElementById('rowCliente').style.display = (conTrabajo || selectedTipo==='NO') ? 'none' : 'block';
+  document.getElementById('demoraField').classList.toggle('visible', selectedTipo === 'DEM');
+}
+
+// Poblar el selector con los trabajos activos, agrupados por división
+function fillTrabajoSelect(selectedId, allowEmpty) {
+  const sel = document.getElementById('fTrabajo');
+  const activos = trabajos.filter(t => t.estado !== 'TERMINADO');
+  const grp = (div, label) => {
+    const items = activos.filter(t => t.division===div);
+    if (!items.length) return '';
+    return `<optgroup label="${label}">` + items.map(t =>
+      `<option value="${esc(t.id)}" ${String(selectedId)===String(t.id)?'selected':''}>${esc(t.titulo)}${t.descripcion?' — '+esc(t.descripcion.slice(0,45)):''}</option>`
+    ).join('') + '</optgroup>';
+  };
+  sel.innerHTML =
+    `<option value="">— Elegí un trabajo —</option>` +
+    (allowEmpty ? `<option value="" ${!selectedId?'selected':''}>— Sin vincular (cita anterior) —</option>` : '') +
+    grp('CLIENTE','👥 Clientes') + grp('INTERNO','🏠 Interno');
+}
+
+// Al elegir un trabajo, precargar descripción y técnico
+function onTrabajoChange() {
+  const id = document.getElementById('fTrabajo').value;
+  const t = trabajos.find(x => String(x.id)===id);
+  if (!t) return;
+  if (!document.getElementById('fDesc').value.trim()) {
+    document.getElementById('fDesc').value = (t.descripcion || '').toUpperCase();
+  }
+  if (t.tecnico) document.getElementById('fTech').value = t.tecnico;
 }
 
 function renderTipoGrid() {
@@ -2021,13 +2085,11 @@ function renderTipoGrid() {
     btn.addEventListener('click', () => {
       selectedTipo = tipo.id;
       renderTipoGrid();
-      // Mostrar/ocultar campo demora
-      document.getElementById('demoraField').classList.toggle('visible', tipo.id === 'DEM');
+      updateCitaFields();
     });
     grid.appendChild(btn);
   });
-  // Si ya estaba seleccionado DEM al abrir, mostrar el campo
-  document.getElementById('demoraField').classList.toggle('visible', selectedTipo === 'DEM');
+  updateCitaFields();
 }
 
 async function saveTask() {
@@ -2040,9 +2102,25 @@ async function saveTask() {
   const demora  = document.getElementById('fDemora').value.trim();
 
   if (!date || !tech) { alert('Completá fecha y técnico'); return; }
-  if (selectedTipo !== 'NO' && !cliente) { alert('Completá el cliente'); return; }
-  if (selectedTipo === 'DEM' && !demora) { alert('Describí el motivo de la demora'); return; }
   if (slotIndex(start) >= slotIndex(end)) { alert('La hora de fin debe ser mayor a la de inicio'); return; }
+
+  // ── Trabajo del pizarrón: obligatorio salvo Capacitación / Demora / No disponible ──
+  let trabajoId = '';
+  if (requiereTrabajo()) {
+    trabajoId = document.getElementById('fTrabajo').value;
+    const legacyOk = editingId && (function(){ const t=tasks.find(x=>x.id===editingId); return t && !t.trabajo; })();
+    if (!trabajoId && !legacyOk) {
+      alert('Elegí el trabajo del pizarrón.\nSi todavía no existe, crealo primero en la pestaña 🔧 Taller (Clientes o Interno).');
+      return;
+    }
+    const tr = trabajos.find(x => String(x.id)===trabajoId);
+    if (tr) cliente = (tr.titulo || '').toUpperCase();
+  } else {
+    if (selectedTipo === 'C' && !cliente) { alert('Completá el cliente / detalle de la capacitación'); return; }
+    if (selectedTipo === 'DEM' && !cliente) { alert('Indicá el cliente / equipo afectado por la demora'); return; }
+  }
+  if (selectedTipo === 'DEM' && !demora) { alert('Describí el motivo de la demora'); return; }
+  if (requiereTrabajo() && !cliente) { alert('Elegí el trabajo del pizarrón'); return; }
 
   // ── Validación de solapamiento ──
   const si = slotIndex(start), ei = slotIndex(end);
@@ -2077,6 +2155,7 @@ async function saveTask() {
         cliente: selectedTipo === 'NO' ? 'No disponible' : cliente,
         desc,
         demora:  selectedTipo === 'DEM' ? demora : '',
+        trabajo: trabajoId || cita.trabajo || '',
       });
       const idToUpdate = editingId;
       closeModal();
@@ -2095,6 +2174,7 @@ async function saveTask() {
     cliente: selectedTipo === 'NO' ? 'No disponible' : cliente,
     desc,
     demora:  selectedTipo === 'DEM' ? demora : '',
+    trabajo: trabajoId || '',
     start, end
   };
 
@@ -2691,16 +2771,17 @@ async function deleteTrabajo() {
 // Agendar: pasar del pizarrón al tablero de citas con todo precargado
 function agendarTrabajo(t) {
   switchTab('tablero');
-  openModal(undefined, t.tecnico || undefined, '08:00');
-  document.getElementById('fCliente').value = t.titulo || '';
-  document.getElementById('fDesc').value = (t.descripcion || '').toUpperCase();
   selectedTipo = t.division==='INTERNO' ? 'I' : 'S';
+  openModal(undefined, t.tecnico || undefined, '08:00');
+  fillTrabajoSelect(t.id, false);
+  document.getElementById('fDesc').value = (t.descripcion || '').toUpperCase();
   renderTipoGrid();
 }
 
 document.getElementById('trabajoOverlay').addEventListener('click', function(e) {
   if (e.target === this) closeTrabajoModal();
 });
+document.getElementById('fTrabajo').addEventListener('change', onTrabajoChange);
 document.getElementById('histInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') { e.preventDefault(); addAnotacion(); }
 });
