@@ -240,6 +240,46 @@
   }
   .trabajo-agendar:hover { background: var(--accent2); color: #0f1117; }
 
+  /* ── HISTORIAL DE TRABAJO ── */
+  .hist-box {
+    margin-top: 14px; padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .hist-title {
+    font-size: 11px; font-weight: 700; letter-spacing: .05em;
+    color: var(--text-dim); margin-bottom: 8px;
+  }
+  .hist-list {
+    max-height: 180px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 6px;
+    margin-bottom: 10px;
+  }
+  .hist-item {
+    background: var(--surface2); border-left: 3px solid var(--accent2);
+    border-radius: var(--radius-sm); padding: 6px 10px;
+    font-size: 12px; color: var(--text);
+  }
+  .hist-item.auto { border-left-color: var(--text-dim); color: var(--text-dim); }
+  .hist-ts {
+    font-size: 10px; color: var(--text-dim);
+    margin-right: 8px; font-variant-numeric: tabular-nums;
+  }
+  .hist-empty { font-size: 12px; color: var(--text-dim); padding: 4px 0; }
+  .hist-input-row { display: flex; gap: 8px; }
+  .hist-input-row input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 8px 10px;
+    color: var(--text); font-family: 'Inter', sans-serif; font-size: 12px;
+  }
+  .hist-input-row input:focus { outline: none; border-color: var(--accent); }
+  .hist-add {
+    background: var(--accent2); color: #0f1117; border: none;
+    border-radius: var(--radius-sm); padding: 8px 14px;
+    font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px;
+    cursor: pointer;
+  }
+  .hist-add:hover { opacity: .85; }
+
   /* ── MODO TV (?tv=1) ── */
   body.tv-mode { zoom: 1.25; cursor: none; }
   body.tv-mode #boardViewToggle,
@@ -1190,6 +1230,17 @@
         <select id="tTech"></select>
       </div>
     </div>
+
+    <!-- HISTORIAL -->
+    <div class="hist-box" id="histBox">
+      <div class="hist-title">🕓 Historial</div>
+      <div class="hist-list" id="histList"></div>
+      <div class="hist-input-row">
+        <input type="text" id="histInput" placeholder="Agregar anotación… (ej: se pidió el repuesto)" maxlength="300">
+        <button class="hist-add" onclick="addAnotacion()">Agregar</button>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn-delete" id="tBtnDelete" onclick="deleteTrabajo()" style="display:none;background:transparent;border:1px solid var(--color-DEM);color:var(--color-DEM);border-radius:var(--radius);padding:9px 14px;font-family:'Inter',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-right:auto;">Eliminar</button>
       <button class="btn-cancel" onclick="closeTrabajoModal()">Cancelar</button>
@@ -2492,6 +2543,7 @@ function renderTaller() {
         <div class="trabajo-meta">
           ${tec ? `<span>👤 ${esc(tec.name)}</span>` : ''}
           ${t.nota ? `<span class="trabajo-nota">📌 ${esc(t.nota)}</span>` : ''}
+          ${(t.historial&&t.historial.length) ? `<span>🕓 ${t.historial.length} nota${t.historial.length>1?'s':''} · últ: ${esc(t.historial[t.historial.length-1].txt.slice(0,40))}${t.historial[t.historial.length-1].txt.length>40?'…':''}</span>` : ''}
           ${t.estado!=='TERMINADO' ? `<button class="trabajo-agendar" data-agendar="${esc(t.id)}">📅 Agendar</button>` : ''}
         </div>
       </div>`;
@@ -2527,7 +2579,51 @@ function openTrabajoModal(t) {
   document.getElementById('tNota').value = t ? (t.nota||'') : '';
   document.getElementById('tTech').innerHTML = '<option value="">— Sin asignar —</option>' +
     TECNICOS.map(x => `<option value="${x.id}" ${t&&t.tecnico===x.id?'selected':''}>${x.name}</option>`).join('');
+  renderHistorial(t);
+  document.getElementById('histInput').value = '';
   document.getElementById('trabajoOverlay').classList.add('open');
+}
+
+function fmtTs(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0')
+    + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function renderHistorial(t) {
+  const list = document.getElementById('histList');
+  const inputRow = document.querySelector('.hist-input-row');
+  if (!t) {
+    list.innerHTML = '<div class="hist-empty">Guardá el trabajo primero para empezar el historial.</div>';
+    inputRow.style.display = 'none';
+    return;
+  }
+  inputRow.style.display = 'flex';
+  const hist = (t.historial || []).slice().reverse(); // más reciente arriba
+  if (!hist.length) {
+    list.innerHTML = '<div class="hist-empty">Sin anotaciones todavía.</div>';
+    return;
+  }
+  list.innerHTML = hist.map(h =>
+    `<div class="hist-item ${h.auto?'auto':''}"><span class="hist-ts">${fmtTs(h.ts)}</span>${esc(h.txt)}</div>`
+  ).join('');
+}
+
+async function addAnotacion() {
+  if (!editingTrabajoId) return;
+  const input = document.getElementById('histInput');
+  const txt = input.value.trim();
+  if (!txt) return;
+  const t = trabajos.find(x => x.id===editingTrabajoId);
+  if (!t) return;
+  if (!t.historial) t.historial = [];
+  t.historial.push({ ts: new Date().toISOString(), txt: txt });
+  input.value = '';
+  renderHistorial(t);
+  renderTaller();
+  try { await jsonpRequest({ action:'addHistorial', id: t.id, texto: txt }); }
+  catch(e) { console.warn('addHistorial:', e.message); }
 }
 
 function closeTrabajoModal() {
@@ -2548,11 +2644,24 @@ async function saveTrabajo() {
 
   if (editingTrabajoId) {
     const t = trabajos.find(x => x.id===editingTrabajoId);
+    const estadoAnterior = t ? t.estado : null;
     if (t) Object.assign(t, data);
     const id = editingTrabajoId;
+
+    // Registrar automáticamente el cambio de estado en el historial
+    let logEstado = null;
+    if (t && estadoAnterior && estadoAnterior !== data.estado) {
+      logEstado = 'Estado: ' + estadoInfo(estadoAnterior).label + ' → ' + estadoInfo(data.estado).label;
+      if (!t.historial) t.historial = [];
+      t.historial.push({ ts: new Date().toISOString(), txt: logEstado, auto: true });
+    }
+
     closeTrabajoModal();
     renderTaller();
-    try { await jsonpRequest(Object.assign({action:'updateTrabajo', id:id}, data)); }
+    try {
+      await jsonpRequest(Object.assign({action:'updateTrabajo', id:id}, data));
+      if (logEstado) await jsonpRequest({ action:'addHistorial', id:id, texto: logEstado, auto: '1' });
+    }
     catch(e) { console.warn('updateTrabajo:', e.message); }
   } else {
     const t = Object.assign({ id:'local_'+Date.now() }, data);
@@ -2591,6 +2700,9 @@ function agendarTrabajo(t) {
 
 document.getElementById('trabajoOverlay').addEventListener('click', function(e) {
   if (e.target === this) closeTrabajoModal();
+});
+document.getElementById('histInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); addAnotacion(); }
 });
 
 // ══════════════════════════════════════════
