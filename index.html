@@ -226,6 +226,7 @@
     padding: 2px 8px; border-radius: 20px; white-space: nowrap;
     border: 1px solid; flex-shrink: 0;
   }
+  .trabajo-unidad { font-size: 11.5px; font-weight: 600; color: var(--accent2); margin-bottom: 2px; }
   .trabajo-desc { font-size: 12px; color: var(--text-dim); }
   .trabajo-meta {
     display: flex; gap: 10px; align-items: center; margin-top: 6px;
@@ -1231,8 +1232,12 @@
       </div>
     </div>
     <div class="form-row">
-      <label>Cliente / Equipo</label>
-      <input type="text" id="tTitulo" placeholder="Ej: FINLAR — T7.195">
+      <label>Cliente</label>
+      <input type="text" id="tTitulo" placeholder="Ej: FINLAR, HECTOR Y JULIO DÍAZ">
+    </div>
+    <div class="form-row">
+      <label>Unidad / Equipo</label>
+      <input type="text" id="tUnidad" placeholder="Ej: T7.195, CR 8.90, SP3000">
     </div>
     <div class="form-row">
       <label>Trabajo a realizar</label>
@@ -2070,7 +2075,7 @@ function fillTrabajoSelect(selectedId, allowEmpty) {
     const items = activos.filter(t => t.division===div);
     if (!items.length) return '';
     return `<optgroup label="${label}">` + items.map(t =>
-      `<option value="${esc(t.id)}" ${String(selectedId)===String(t.id)?'selected':''}>${esc(t.titulo)}${t.descripcion?' — '+esc(t.descripcion.slice(0,45)):''}</option>`
+      `<option value="${esc(t.id)}" ${String(selectedId)===String(t.id)?'selected':''}>${esc(t.titulo)}${t.unidad?' · '+esc(t.unidad):''}${t.descripcion?' — '+esc(t.descripcion.slice(0,40)):''}</option>`
     ).join('') + '</optgroup>';
   };
   sel.innerHTML =
@@ -2085,7 +2090,8 @@ function onTrabajoChange() {
   const t = trabajos.find(x => String(x.id)===id);
   if (!t) return;
   if (!document.getElementById('fDesc').value.trim()) {
-    document.getElementById('fDesc').value = (t.descripcion || '').toUpperCase();
+    const partes = [t.unidad, t.descripcion].filter(Boolean).join(' · ');
+    document.getElementById('fDesc').value = partes.toUpperCase();
   }
   const tl = techList(t);
   if (tl.length) document.getElementById('fTech').value = tl[0];
@@ -2601,7 +2607,7 @@ async function finalizarTrabajo(t) {
   try {
     await jsonpRequest({
       action:'updateTrabajo', id: t.id,
-      division: t.division, titulo: t.titulo, descripcion: t.descripcion || '',
+      division: t.division, titulo: t.titulo, unidad: t.unidad || '', descripcion: t.descripcion || '',
       estado: 'TERMINADO', nota: t.nota || '', tecnico: t.tecnico || ''
     });
     await jsonpRequest({ action:'addHistorial', id: t.id, texto: txt, auto: '1' });
@@ -2694,6 +2700,7 @@ function renderTaller() {
           <span class="trabajo-titulo">${esc(t.titulo)}</span>
           <span class="trabajo-badge" style="color:${e.color};border-color:${e.color}">${e.label.toUpperCase()}</span>
         </div>
+        ${t.unidad ? `<div class="trabajo-unidad">🚜 ${esc(t.unidad)}</div>` : ''}
         ${t.descripcion ? `<div class="trabajo-desc">${esc(t.descripcion)}</div>` : ''}
         <div class="trabajo-meta">
           ${tecNoms.length ? `<span>👤 ${esc(tecNoms.join(', '))}</span>` : ''}
@@ -2738,6 +2745,7 @@ function openTrabajoModal(t) {
   document.getElementById('tEstado').innerHTML = ESTADOS_TRABAJO.map(e =>
     `<option value="${e.id}" ${t&&t.estado===e.id?'selected':''}>${e.label}</option>`).join('');
   document.getElementById('tTitulo').value = t ? (t.titulo||'') : '';
+  document.getElementById('tUnidad').value = t ? (t.unidad||'') : '';
   document.getElementById('tDesc').value = t ? (t.descripcion||'') : '';
   document.getElementById('tNota').value = t ? (t.nota||'') : '';
   pickedTechs = new Set(t ? techList(t) : []);
@@ -2798,12 +2806,13 @@ async function saveTrabajo() {
   const data = {
     division:    document.getElementById('tDiv').value,
     titulo:      document.getElementById('tTitulo').value.trim().toUpperCase(),
+    unidad:      document.getElementById('tUnidad').value.trim().toUpperCase(),
     descripcion: document.getElementById('tDesc').value.trim(),
     estado:      document.getElementById('tEstado').value,
     nota:        document.getElementById('tNota').value.trim(),
     tecnico:     Array.from(pickedTechs).join(','),
   };
-  if (!data.titulo) { alert('Completá el cliente / equipo'); return; }
+  if (!data.titulo) { alert('Completá el cliente'); return; }
 
   if (editingTrabajoId) {
     const t = trabajos.find(x => x.id===editingTrabajoId);
@@ -2858,7 +2867,7 @@ function agendarTrabajo(t) {
   const tl = techList(t);
   openModal(undefined, tl[0] || undefined, '08:00');
   fillTrabajoSelect(t.id, false);
-  document.getElementById('fDesc').value = (t.descripcion || '').toUpperCase();
+  document.getElementById('fDesc').value = [t.unidad, t.descripcion].filter(Boolean).join(' · ').toUpperCase();
   renderTipoGrid();
 }
 
