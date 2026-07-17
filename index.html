@@ -242,6 +242,19 @@
   .trabajo-fin { margin-left: 6px; border-color: #3ecf8e; color: #3ecf8e; }
   .trabajo-fin:hover { background: #3ecf8e; color: #0f1117; }
 
+  /* ── SELECTOR MÚLTIPLE DE TÉCNICOS ── */
+  .tech-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tech-pick .tp-chip {
+    font-size: 11px; font-weight: 600;
+    padding: 5px 11px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--text-dim);
+    background: var(--surface2); cursor: pointer;
+    transition: all .12s; user-select: none;
+  }
+  .tech-pick .tp-chip.on {
+    background: var(--accent2); border-color: var(--accent2); color: #0f1117;
+  }
+
   /* ── HISTORIAL DE TRABAJO ── */
   .hist-box {
     margin-top: 14px; padding-top: 12px;
@@ -1205,33 +1218,33 @@
   <div class="modal">
     <div class="modal-title" id="trabajoTitle">Nuevo trabajo</div>
     <div class="form-grid">
-      <div class="form-field">
+      <div class="form-row">
         <label>División</label>
         <select id="tDiv">
           <option value="CLIENTE">Cliente</option>
           <option value="INTERNO">Interno</option>
         </select>
       </div>
-      <div class="form-field">
+      <div class="form-row">
         <label>Estado</label>
         <select id="tEstado"></select>
       </div>
-      <div class="form-field full">
-        <label>Cliente / Equipo</label>
-        <input type="text" id="tTitulo" placeholder="Ej: FINLAR — T7.195">
-      </div>
-      <div class="form-field full">
-        <label>Trabajo a realizar</label>
-        <input type="text" id="tDesc" placeholder="Ej: Rotura cabezal grano limpio (G)">
-      </div>
-      <div class="form-field full">
-        <label>Nota / seguimiento</label>
-        <input type="text" id="tNota" placeholder="Ej: Espera repuesto — hablar con ventas">
-      </div>
-      <div class="form-field full">
-        <label>Técnico asignado (opcional)</label>
-        <select id="tTech"></select>
-      </div>
+    </div>
+    <div class="form-row">
+      <label>Cliente / Equipo</label>
+      <input type="text" id="tTitulo" placeholder="Ej: FINLAR — T7.195">
+    </div>
+    <div class="form-row">
+      <label>Trabajo a realizar</label>
+      <input type="text" id="tDesc" placeholder="Ej: Rotura cabezal grano limpio (G)">
+    </div>
+    <div class="form-row">
+      <label>Nota / seguimiento</label>
+      <input type="text" id="tNota" placeholder="Ej: Espera repuesto — hablar con ventas">
+    </div>
+    <div class="form-row">
+      <label>Técnicos asignados (opcional — pueden ser varios)</label>
+      <div class="tech-pick" id="tTechChips"></div>
     </div>
 
     <!-- HISTORIAL -->
@@ -2074,7 +2087,8 @@ function onTrabajoChange() {
   if (!document.getElementById('fDesc').value.trim()) {
     document.getElementById('fDesc').value = (t.descripcion || '').toUpperCase();
   }
-  if (t.tecnico) document.getElementById('fTech').value = t.tecnico;
+  const tl = techList(t);
+  if (tl.length) document.getElementById('fTech').value = tl[0];
 }
 
 function renderTipoGrid() {
@@ -2609,6 +2623,34 @@ async function loadTrabajos(force) {
   }
 }
 
+// El campo tecnico guarda uno o varios IDs separados por coma: "AT" o "AT,HR"
+function techList(t) {
+  return String(t.tecnico || '').split(',').map(x=>x.trim()).filter(Boolean);
+}
+function techNames(t) {
+  return techList(t).map(id => {
+    const x = TECNICOS.find(y=>y.id===id);
+    return x ? x.name : id;
+  });
+}
+
+let pickedTechs = new Set();
+
+function renderTechPick() {
+  const box = document.getElementById('tTechChips');
+  box.innerHTML = '';
+  TECNICOS.forEach(x => {
+    const c = document.createElement('div');
+    c.className = 'tp-chip ' + (pickedTechs.has(x.id) ? 'on' : '');
+    c.textContent = x.name;
+    c.addEventListener('click', () => {
+      if (pickedTechs.has(x.id)) pickedTechs.delete(x.id); else pickedTechs.add(x.id);
+      renderTechPick();
+    });
+    box.appendChild(c);
+  });
+}
+
 function estadoInfo(id) {
   for (var i=0;i<ESTADOS_TRABAJO.length;i++) if (ESTADOS_TRABAJO[i].id===id) return ESTADOS_TRABAJO[i];
   return ESTADOS_TRABAJO[0];
@@ -2646,7 +2688,7 @@ function renderTaller() {
     }
     col.innerHTML = items.map(t => {
       const e = estadoInfo(t.estado);
-      const tec = t.tecnico ? TECNICOS.find(x=>x.id===t.tecnico) : null;
+      const tecNoms = techNames(t);
       return `<div class="trabajo-card ${t.estado==='TERMINADO'?'done':''}" data-id="${esc(t.id)}" style="border-left-color:${e.color}">
         <div class="trabajo-top">
           <span class="trabajo-titulo">${esc(t.titulo)}</span>
@@ -2654,7 +2696,7 @@ function renderTaller() {
         </div>
         ${t.descripcion ? `<div class="trabajo-desc">${esc(t.descripcion)}</div>` : ''}
         <div class="trabajo-meta">
-          ${tec ? `<span>👤 ${esc(tec.name)}</span>` : ''}
+          ${tecNoms.length ? `<span>👤 ${esc(tecNoms.join(', '))}</span>` : ''}
           ${t.nota ? `<span class="trabajo-nota">📌 ${esc(t.nota)}</span>` : ''}
           ${(t.historial&&t.historial.length) ? `<span>🕓 ${t.historial.length} nota${t.historial.length>1?'s':''} · últ: ${esc(t.historial[t.historial.length-1].txt.slice(0,40))}${t.historial[t.historial.length-1].txt.length>40?'…':''}</span>` : ''}
           ${t.estado!=='TERMINADO' ? `<button class="trabajo-agendar" data-agendar="${esc(t.id)}">📅 Agendar</button>
@@ -2698,8 +2740,8 @@ function openTrabajoModal(t) {
   document.getElementById('tTitulo').value = t ? (t.titulo||'') : '';
   document.getElementById('tDesc').value = t ? (t.descripcion||'') : '';
   document.getElementById('tNota').value = t ? (t.nota||'') : '';
-  document.getElementById('tTech').innerHTML = '<option value="">— Sin asignar —</option>' +
-    TECNICOS.map(x => `<option value="${x.id}" ${t&&t.tecnico===x.id?'selected':''}>${x.name}</option>`).join('');
+  pickedTechs = new Set(t ? techList(t) : []);
+  renderTechPick();
   renderHistorial(t);
   document.getElementById('histInput').value = '';
   document.getElementById('trabajoOverlay').classList.add('open');
@@ -2759,7 +2801,7 @@ async function saveTrabajo() {
     descripcion: document.getElementById('tDesc').value.trim(),
     estado:      document.getElementById('tEstado').value,
     nota:        document.getElementById('tNota').value.trim(),
-    tecnico:     document.getElementById('tTech').value,
+    tecnico:     Array.from(pickedTechs).join(','),
   };
   if (!data.titulo) { alert('Completá el cliente / equipo'); return; }
 
@@ -2813,7 +2855,8 @@ async function deleteTrabajo() {
 function agendarTrabajo(t) {
   switchTab('tablero');
   selectedTipo = t.division==='INTERNO' ? 'I' : 'S';
-  openModal(undefined, t.tecnico || undefined, '08:00');
+  const tl = techList(t);
+  openModal(undefined, tl[0] || undefined, '08:00');
   fillTrabajoSelect(t.id, false);
   document.getElementById('fDesc').value = (t.descripcion || '').toUpperCase();
   renderTipoGrid();
