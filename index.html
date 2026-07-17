@@ -1329,6 +1329,23 @@
       <div class="cal-grid" id="calGrid"></div>
     </div>
   </div>
+
+  <!-- ═══ INFORME DE TALLER (pizarrón) ═══ -->
+  <div class="analytics-header" style="margin-top:24px">
+    <div class="analytics-title">🔧 Informe de taller</div>
+    <span style="font-size:11px;color:var(--text-dim)">Foto actual del pizarrón + histórico de finalizados</span>
+  </div>
+  <div class="kpi-grid" id="tallerKpis"></div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Trabajos por estado <span id="trabEstadoTotal"></span></div>
+      <div class="bar-list" id="estadoBars"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">⚠ Estancados — más días sin novedades</div>
+      <div class="bar-list" id="estancadosList"></div>
+    </div>
+  </div>
 </div><!-- /analyticsPanel -->
 
 <!-- FAB -->
@@ -2282,6 +2299,94 @@ async function renderAnalytics() {
   renderDemoras(pts);
   renderHeatmap(pts);
   if (analyticsPeriod==='mes') renderCalendar(pts);
+  await loadTrabajosSilent();
+  renderTallerReport();
+}
+
+// ══════════════════════════════════════════
+// ── INFORME DE TALLER ──
+// ══════════════════════════════════════════
+function diasDesde(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+}
+
+// Última actividad de un trabajo (anotación más reciente, o creación)
+function ultimaActividad(t) {
+  if (t.historial && t.historial.length) return t.historial[t.historial.length-1].ts;
+  return t.creadoEn || null;
+}
+
+// Días que tardó en finalizarse (creación → entrada de finalizado / última entrada)
+function diasResolucion(t) {
+  if (!t.creadoEn) return null;
+  let fin = null;
+  if (t.historial) {
+    for (let i = t.historial.length-1; i >= 0; i--) {
+      if (t.historial[i].txt && t.historial[i].txt.indexOf('finalizado') !== -1) { fin = t.historial[i].ts; break; }
+    }
+    if (!fin && t.historial.length) fin = t.historial[t.historial.length-1].ts;
+  }
+  if (!fin) return null;
+  const a = new Date(t.creadoEn), b = new Date(fin);
+  if (isNaN(a) || isNaN(b)) return null;
+  return Math.max(0, Math.round((b - a) / 86400000));
+}
+
+function renderTallerReport() {
+  const activos = trabajos.filter(t => t.estado !== 'TERMINADO');
+  const fin = trabajos.filter(t => t.estado === 'TERMINADO');
+  const enEspera = activos.filter(t => t.estado.indexOf('ESP_') === 0);
+
+  // KPIs
+  const res = fin.map(diasResolucion).filter(x => x !== null);
+  const promRes = res.length ? (res.reduce((a,b)=>a+b,0) / res.length) : null;
+  const kpis = [
+    { label:'Trabajos activos', value: activos.length,
+      sub:`${activos.filter(t=>t.division==='CLIENTE').length} clientes · ${activos.filter(t=>t.division==='INTERNO').length} internos`, cls:'kpi-info' },
+    { label:'En espera', value: enEspera.length,
+      sub:'repuesto / cliente / interna', cls: enEspera.length ? 'kpi-warn' : 'kpi-ok' },
+    { label:'Finalizados', value: fin.length, sub:'histórico total', cls:'kpi-ok' },
+    { label:'Resolución prom.', value: promRes===null ? '—' : promRes.toFixed(1)+' d',
+      sub: res.length ? `sobre ${res.length} finalizados` : 'sin datos aún', cls:'kpi-neu' },
+  ];
+  document.getElementById('tallerKpis').innerHTML = kpis.map(k =>
+    `<div class="kpi-card ${k.cls}">
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join('');
+
+  // Barras por estado, divididas cliente/interno
+  document.getElementById('trabEstadoTotal').textContent = `— ${trabajos.length} en total`;
+  const maxE = Math.max(1, ...ESTADOS_TRABAJO.map(e => trabajos.filter(t=>t.estado===e.id).length));
+  document.getElementById('estadoBars').innerHTML = ESTADOS_TRABAJO.map(e => {
+    const items = trabajos.filter(t => t.estado===e.id);
+    if (!items.length) return '';
+    const nC = items.filter(t=>t.division==='CLIENTE').length;
+    const nI = items.length - nC;
+    return `<div class="bar-item">
+      <span class="bar-item-label">${e.label}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${items.length/maxE*100}%;background:${e.color}"></div></div>
+      <span class="bar-item-val">${items.length} <span style="color:var(--text-dim);font-size:9px">(${nC}C/${nI}I)</span></span>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-dim);font-size:12px">Sin trabajos cargados</div>';
+
+  // Estancados: activos con más días sin novedades
+  const conDias = activos.map(t => ({ t, dias: diasDesde(ultimaActividad(t)) }))
+    .filter(x => x.dias !== null)
+    .sort((a,b) => b.dias - a.dias)
+    .slice(0, 6);
+  document.getElementById('estancadosList').innerHTML = conDias.length ? conDias.map(x => {
+    const e = estadoInfo(x.t.estado);
+    const alerta = x.dias >= 7;
+    return `<div class="bar-item">
+      <span class="bar-item-label" style="width:auto;flex:1" title="${esc(x.t.titulo)}">${esc(x.t.titulo)}${x.t.unidad?' · '+esc(x.t.unidad):''}
+        <span style="color:${e.color};font-size:9px"> ${e.label}</span></span>
+      <span class="bar-item-val" style="color:${alerta?'var(--color-DEM)':'var(--text-dim)'}">${x.dias===0?'hoy':x.dias+' día'+(x.dias>1?'s':'')}</span>
+    </div>`;
+  }).join('') : '<div style="color:var(--text-dim);font-size:12px">Sin trabajos activos</div>';
 }
 
 // cerrar modal al click afuera
