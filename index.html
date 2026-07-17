@@ -239,6 +239,8 @@
     font-weight: 700; cursor: pointer; font-family: 'Inter', sans-serif;
   }
   .trabajo-agendar:hover { background: var(--accent2); color: #0f1117; }
+  .trabajo-fin { margin-left: 6px; border-color: #3ecf8e; color: #3ecf8e; }
+  .trabajo-fin:hover { background: #3ecf8e; color: #0f1117; }
 
   /* ── HISTORIAL DE TRABAJO ── */
   .hist-box {
@@ -1183,6 +1185,7 @@
 <div class="taller-panel" id="tallerPanel">
   <div class="taller-toolbar">
     <div class="taller-counters" id="tallerCounters"></div>
+    <button class="chip" id="btnVerFinalizados" onclick="toggleFinalizados()" style="cursor:pointer;">✔ Finalizados</button>
     <button class="btn-add" onclick="openTrabajoModal()">+ Nuevo trabajo</button>
   </div>
   <div class="taller-cols">
@@ -2567,6 +2570,29 @@ const ESTADOS_TRABAJO = [
 let trabajos = [];
 let trabajosLoaded = false;
 let editingTrabajoId = null;
+let verFinalizados = false;
+
+function toggleFinalizados() {
+  verFinalizados = !verFinalizados;
+  renderTaller();
+}
+
+async function finalizarTrabajo(t) {
+  if (!confirm(`✔ ¿Finalizar el trabajo de ${t.titulo}?\nSe registrará en el historial y saldrá del pizarrón.`)) return;
+  t.estado = 'TERMINADO';
+  if (!t.historial) t.historial = [];
+  const txt = '✔ Trabajo finalizado';
+  t.historial.push({ ts: new Date().toISOString(), txt: txt, auto: true });
+  renderTaller();
+  try {
+    await jsonpRequest({
+      action:'updateTrabajo', id: t.id,
+      division: t.division, titulo: t.titulo, descripcion: t.descripcion || '',
+      estado: 'TERMINADO', nota: t.nota || '', tecnico: t.tecnico || ''
+    });
+    await jsonpRequest({ action:'addHistorial', id: t.id, texto: txt, auto: '1' });
+  } catch(e) { console.warn('finalizarTrabajo:', e.message); }
+}
 
 async function loadTrabajos(force) {
   if (trabajosLoaded && !force) { renderTaller(); return; }
@@ -2602,9 +2628,16 @@ function renderTaller() {
   ESTADOS_TRABAJO.forEach((e,i) => orden[e.id] = e.id==='TERMINADO' ? 99 : i);
   const sorted = trabajos.slice().sort((a,b) => (orden[a.estado]||0) - (orden[b.estado]||0));
 
+  // Botón de finalizados: mostrar cuántos hay
+  const nFin = trabajos.filter(t => t.estado==='TERMINADO').length;
+  const btnFin = document.getElementById('btnVerFinalizados');
+  btnFin.textContent = (verFinalizados ? '👁 Ocultar finalizados' : '✔ Finalizados') + (nFin ? ` (${nFin})` : '');
+  btnFin.classList.toggle('active', verFinalizados);
+  btnFin.style.display = nFin ? 'block' : 'none';
+
   ['CLIENTE','INTERNO'].forEach(div => {
     const col = document.getElementById(div==='CLIENTE' ? 'colClientes' : 'colInterno');
-    const items = sorted.filter(t => t.division===div);
+    const items = sorted.filter(t => t.division===div && (verFinalizados || t.estado!=='TERMINADO'));
     document.getElementById(div==='CLIENTE' ? 'cntClientes' : 'cntInterno').textContent =
       items.filter(t=>t.estado!=='TERMINADO').length + ' activos';
     if (!items.length) {
@@ -2624,7 +2657,8 @@ function renderTaller() {
           ${tec ? `<span>👤 ${esc(tec.name)}</span>` : ''}
           ${t.nota ? `<span class="trabajo-nota">📌 ${esc(t.nota)}</span>` : ''}
           ${(t.historial&&t.historial.length) ? `<span>🕓 ${t.historial.length} nota${t.historial.length>1?'s':''} · últ: ${esc(t.historial[t.historial.length-1].txt.slice(0,40))}${t.historial[t.historial.length-1].txt.length>40?'…':''}</span>` : ''}
-          ${t.estado!=='TERMINADO' ? `<button class="trabajo-agendar" data-agendar="${esc(t.id)}">📅 Agendar</button>` : ''}
+          ${t.estado!=='TERMINADO' ? `<button class="trabajo-agendar" data-agendar="${esc(t.id)}">📅 Agendar</button>
+          <button class="trabajo-agendar trabajo-fin" data-finalizar="${esc(t.id)}">✔ Finalizar</button>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -2642,6 +2676,13 @@ function renderTaller() {
       e.stopPropagation();
       const t = trabajos.find(x => String(x.id)===el.dataset.agendar);
       if (t) agendarTrabajo(t);
+    });
+  });
+  document.querySelectorAll('[data-finalizar]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const t = trabajos.find(x => String(x.id)===el.dataset.finalizar);
+      if (t) finalizarTrabajo(t);
     });
   });
 }
