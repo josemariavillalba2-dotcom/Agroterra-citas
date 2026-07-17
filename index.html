@@ -2705,7 +2705,7 @@ function renderTaller() {
         <div class="trabajo-meta">
           ${tecNoms.length ? `<span>👤 ${esc(tecNoms.join(', '))}</span>` : ''}
           ${t.nota ? `<span class="trabajo-nota">📌 ${esc(t.nota)}</span>` : ''}
-          ${(t.historial&&t.historial.length) ? `<span>🕓 ${t.historial.length} nota${t.historial.length>1?'s':''} · últ: ${esc(t.historial[t.historial.length-1].txt.slice(0,40))}${t.historial[t.historial.length-1].txt.length>40?'…':''}</span>` : ''}
+          ${(t.historial&&t.historial.length) ? `<span>🕓 ${t.historial.length} nota${t.historial.length>1?'s':''}</span>` : ''}
           ${t.estado!=='TERMINADO' ? `<button class="trabajo-agendar" data-agendar="${esc(t.id)}">📅 Agendar</button>
           <button class="trabajo-agendar trabajo-fin" data-finalizar="${esc(t.id)}">✔ Finalizar</button>` : ''}
         </div>
@@ -2790,10 +2790,23 @@ async function addAnotacion() {
   if (!t) return;
   if (!t.historial) t.historial = [];
   t.historial.push({ ts: new Date().toISOString(), txt: txt });
+
+  // La anotación nueva pasa a ser la nota visible (📌) de la tarjeta
+  t.nota = txt;
+  document.getElementById('tNota').value = txt;
+
   input.value = '';
   renderHistorial(t);
   renderTaller();
-  try { await jsonpRequest({ action:'addHistorial', id: t.id, texto: txt }); }
+  try {
+    await jsonpRequest({ action:'addHistorial', id: t.id, texto: txt });
+    await jsonpRequest({
+      action:'updateTrabajo', id: t.id,
+      division: t.division, titulo: t.titulo, unidad: t.unidad || '',
+      descripcion: t.descripcion || '', estado: t.estado,
+      nota: txt, tecnico: t.tecnico || ''
+    });
+  }
   catch(e) { console.warn('addHistorial:', e.message); }
 }
 
