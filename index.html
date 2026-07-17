@@ -2097,7 +2097,7 @@ async function saveTask() {
   const tech    = document.getElementById('fTech').value;
   const start   = document.getElementById('fStart').value;
   const end     = document.getElementById('fEnd').value;
-  const cliente = document.getElementById('fCliente').value.trim().toUpperCase();
+  let cliente = document.getElementById('fCliente').value.trim().toUpperCase();
   const desc    = document.getElementById('fDesc').value.trim().toUpperCase();
   const demora  = document.getElementById('fDemora').value.trim();
 
