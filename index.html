@@ -736,6 +736,9 @@
     width: 100%;
     max-width: 480px;
     padding: 20px 20px 32px;
+    max-height: 92vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     animation: slideUp .25s ease;
   }
   @keyframes slideUp { from { transform: translateY(40px); opacity:0 } to { transform: translateY(0); opacity:1 } }
@@ -1257,6 +1260,104 @@
     font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 10px;
     color: var(--text-dim); margin-left: auto;
   }
+<style>
+  /* ── RECEPCIÓN DE CASO ── */
+  .recepcion-panel { display: none; padding: 16px; max-width: 1500px; margin: 0 auto; }
+  .recepcion-panel.visible { display: block; }
+  .rec-toolbar {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .rec-counters { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+  .rec-cols {
+    display: grid; grid-template-columns: repeat(5, minmax(240px, 1fr));
+    gap: 12px; align-items: start;
+  }
+  @media (max-width: 1200px) { .rec-cols { grid-template-columns: repeat(2, minmax(240px,1fr)); } }
+  @media (max-width: 700px)  { .rec-cols { grid-template-columns: 1fr; } }
+  .rec-col {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px; min-height: 160px;
+  }
+  .rec-col-title {
+    font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+    padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; gap: 6px;
+  }
+  .rec-col-title .n { color: var(--text-dim); font-weight: 600; }
+  .caso-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-left: 4px solid var(--text-dim);
+    border-radius: var(--radius-sm); padding: 9px 10px;
+    margin-bottom: 8px; cursor: pointer; transition: border-color .15s;
+  }
+  .caso-card:hover { border-color: var(--text-dim); }
+  .caso-top { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .caso-cliente {
+    font-weight: 800; font-size: 12px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  }
+  .caso-urg {
+    font-size: 8.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+    padding: 2px 5px; border-radius: 3px; white-space: nowrap;
+  }
+  .caso-unidad { font-size: 10.5px; color: var(--accent2); margin-bottom: 3px; }
+  .caso-desc {
+    font-size: 11px; color: var(--text-dim); line-height: 1.35;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .caso-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; align-items: center; }
+  .caso-tag {
+    font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 3px;
+    border: 1px solid var(--border); color: var(--text-dim);
+  }
+  .caso-tag.gar { border-color: var(--color-G); color: var(--color-G); }
+  .caso-tag.plata { border-color: var(--color-S); color: var(--color-S); }
+  .caso-dias { margin-left: auto; font-size: 9px; color: var(--text-dim); }
+  .caso-dias.viejo { color: var(--color-R); font-weight: 700; }
+  .caso-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .caso-btn {
+    flex: 1; min-width: 74px;
+    font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 700;
+    padding: 5px 8px; border-radius: var(--radius-sm);
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    cursor: pointer; transition: all .12s;
+  }
+  .caso-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .caso-btn.ok { border-color: var(--color-S); color: var(--color-S); }
+  .caso-btn.ok:hover { background: var(--color-S); color: #0f1117; }
+  .caso-btn.no { border-color: #ef4444; color: #ef4444; }
+  .caso-btn.no:hover { background: #ef4444; color: #fff; }
+  .caso-btn.go { border-color: var(--accent); color: var(--accent); }
+  .caso-btn.go:hover { background: var(--accent); color: #0f1117; }
+
+  .pick-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pick-opt {
+    font-size: 11px; font-weight: 600; padding: 5px 11px; border-radius: 20px;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim);
+    cursor: pointer; transition: all .12s; user-select: none;
+  }
+  .pick-opt:hover { border-color: var(--text-dim); color: var(--text); }
+  .pick-opt.on { color: #0f1117; font-weight: 800; }
+  .fotos-strip { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .fotos-strip a, .fotos-strip .fthumb {
+    width: 54px; height: 54px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); background: var(--surface2) center/cover no-repeat;
+    display: block; position: relative;
+  }
+  .fotos-strip .fthumb .x {
+    position: absolute; top: -5px; right: -5px; width: 16px; height: 16px;
+    border-radius: 50%; background: #ef4444; color: #fff;
+    font-size: 11px; font-weight: 800; line-height: 16px; text-align: center; cursor: pointer;
+  }
+  .rec-empty { color: var(--text-dim); font-size: 11px; padding: 8px 2px; }
+  .form-row textarea {
+    width: 100%; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    color: var(--text); font-family: 'Inter', sans-serif; font-size: 13px;
+    padding: 9px 11px; resize: vertical;
+  }
+  .form-row textarea:focus { outline: none; border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -1285,6 +1386,7 @@
 
 <!-- TABS -->
 <div class="nav-tabs">
+  <div class="nav-tab" id="tabRecepcion" onclick="switchTab('recepcion')">📝 Recepción de caso</div>
   <div class="nav-tab active" id="tabTablero" onclick="switchTab('tablero')">📅 Tablero</div>
   <div class="nav-tab" id="tabTaller" onclick="switchTab('taller')">🔧 Taller</div>
   <div class="nav-tab" id="tabAnalytics" onclick="switchTab('analytics')">📊 Analytics</div>
@@ -1315,6 +1417,159 @@
 </div>
 
 </div><!-- /tableroPanel -->
+
+<!-- ═══ PANEL RECEPCIÓN DE CASO ═══ -->
+<div class="recepcion-panel" id="recepcionPanel">
+  <div class="rec-toolbar">
+    <div class="rec-counters" id="recCounters"></div>
+    <button class="chip" id="btnVerCerrados" onclick="toggleCasosCerrados()" style="cursor:pointer">✔ Cerrados</button>
+    <button class="btn-add" onclick="openCasoModal()">+ Nuevo caso</button>
+  </div>
+  <div class="rec-cols" id="recCols"></div>
+</div>
+
+<!-- MODAL CASO -->
+<div class="modal-overlay" id="casoOverlay">
+  <div class="modal">
+    <div class="modal-title" id="casoTitle">Nuevo caso</div>
+
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Recibido por</label>
+        <select id="cRecibido">
+          <option value="Mara">Mara</option>
+          <option value="Gino">Gino</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Origen</label>
+        <select id="cOrigen">
+          <option value="LLAMADO">Llamado del cliente</option>
+          <option value="CORREO">Correo de Ventas</option>
+          <option value="INTERNO">Interno</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>Cliente</label>
+      <input type="text" id="cCliente" placeholder="Ej: HÉCTOR Y JULIO DÍAZ">
+    </div>
+
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Contacto / teléfono</label>
+        <input type="text" id="cContacto" placeholder="Ej: Juan — 3564 55-1234">
+      </div>
+      <div class="form-row">
+        <label>Garantía</label>
+        <select id="cGarantia">
+          <option value="NO">No</option>
+          <option value="SI">Sí</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Unidad / Equipo</label>
+        <input type="text" id="cUnidad" placeholder="Ej: T7.195, CR 8.90">
+      </div>
+      <div class="form-row">
+        <label>Chasis</label>
+        <input type="text" id="cChasis" placeholder="N° de chasis / serie">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>Horas del equipo</label>
+      <input type="text" id="cHoras" placeholder="Ej: 1.240 h">
+    </div>
+
+    <div class="form-row">
+      <label>Descripción de la falla</label>
+      <textarea id="cDesc" rows="3" placeholder="Qué le pasa al equipo, según lo que relata el cliente"></textarea>
+    </div>
+
+    <div class="form-row">
+      <label>Urgencia de la situación</label>
+      <div class="pick-row" id="cUrgPick"></div>
+    </div>
+
+    <div class="form-row">
+      <label>Comentarios generales</label>
+      <textarea id="cComent" rows="2" placeholder="Todo lo que sirva para presupuestar"></textarea>
+    </div>
+
+    <div class="form-row">
+      <label>Fotos de la falla</label>
+      <input type="file" id="cFotoInput" accept="image/*" multiple style="display:none">
+      <button class="caso-btn" style="flex:0 0 auto;min-width:150px" onclick="document.getElementById('cFotoInput').click()">📷 Agregar fotos</button>
+      <div class="fotos-strip" id="cFotos"></div>
+    </div>
+
+    <div class="form-grid" id="cPresupRow" style="display:none">
+      <div class="form-row">
+        <label>N° de presupuesto</label>
+        <input type="text" id="cPresupNro" placeholder="Ej: P-2026-0142">
+      </div>
+      <div class="form-row">
+        <label>Monto presupuestado</label>
+        <input type="text" id="cPresupMonto" placeholder="Ej: 1.850.000">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>Estado</label>
+      <select id="cEstado"></select>
+    </div>
+
+    <div class="hist-box" id="cHistBox" style="display:none">
+      <div class="hist-title">🕓 Seguimiento del caso</div>
+      <div class="hist-list" id="cHistList"></div>
+      <div class="hist-input-row">
+        <input type="text" id="cHistInput" placeholder="Agregar anotación… (ej: se pidió foto del número de chasis)" maxlength="300">
+        <button class="hist-add" onclick="addCasoNota()">Agregar</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button id="cBtnDelete" onclick="deleteCaso()" style="display:none;background:transparent;border:1px solid #ef4444;color:#ef4444;border-radius:var(--radius);padding:9px 14px;font-family:'Inter',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-right:auto;">Eliminar</button>
+      <button class="btn-cancel" onclick="closeCasoModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveCaso()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RECHAZO -->
+<div class="modal-overlay" id="rechazoOverlay">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">Registrar rechazo</div>
+    <div class="form-row">
+      <label>Motivo</label>
+      <select id="rMotivo">
+        <option value="PRECIO">Precio</option>
+        <option value="PLAZO">Plazo de entrega</option>
+        <option value="OTRO_TALLER">Lo hace otro taller</option>
+        <option value="NO_LO_HACE">Decide no hacerlo</option>
+        <option value="OTRO">Otro</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Monto presupuestado</label>
+      <input type="text" id="rMonto" placeholder="Ej: 1.850.000">
+    </div>
+    <div class="form-row">
+      <label>Comentario</label>
+      <textarea id="rComent" rows="3" placeholder="Qué dijo el cliente"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeRechazo()">Cancelar</button>
+      <button class="btn-save" onclick="confirmRechazo()">Registrar rechazo</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ PANEL TALLER ═══ -->
 <div class="taller-panel" id="tallerPanel">
@@ -2669,10 +2924,12 @@ let analyticsMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1
 
 function switchTab(tab) {
   currentTab = tab;
+  document.getElementById('tabRecepcion').classList.toggle('active', tab==='recepcion');
   document.getElementById('tabTablero').classList.toggle('active', tab==='tablero');
   document.getElementById('tabTaller').classList.toggle('active', tab==='taller');
   document.getElementById('tabAnalytics').classList.toggle('active', tab==='analytics');
   document.getElementById('tableroPanel').classList.toggle('hidden', tab!=='tablero');
+  document.getElementById('recepcionPanel').classList.toggle('visible', tab==='recepcion');
   document.getElementById('tallerPanel').classList.toggle('visible', tab==='taller');
   document.getElementById('analyticsPanel').classList.toggle('visible', tab==='analytics');
   document.getElementById('weekNavEl').style.display = tab==='tablero' ? 'flex' : 'none';
@@ -2680,6 +2937,7 @@ function switchTab(tab) {
   document.getElementById('btnAddHeader').style.display = tab==='tablero' ? 'flex' : 'none';
   if (tab==='analytics') renderAnalytics();
   if (tab==='taller') loadTrabajos();
+  if (tab==='recepcion') loadCasos();
 }
 
 function setPeriod(p) {
@@ -3053,294 +3311,4 @@ function renderTaller() {
     document.getElementById(div==='CLIENTE' ? 'cntClientes' : 'cntInterno').textContent =
       items.filter(t=>t.estado!=='TERMINADO').length + ' activos';
     if (!items.length) {
-      col.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:10px 4px;">Sin trabajos cargados</div>';
-      return;
-    }
-    col.innerHTML = items.map(t => {
-      const e = estadoInfo(t.estado);
-      const tecNoms = techNames(t);
-      return `<div class="trabajo-card ${t.estado==='TERMINADO'?'done':''}" data-id="${esc(t.id)}" style="border-left-color:${e.color}">
-        <div class="trabajo-top">
-          <span class="trabajo-titulo">${esc(t.titulo)}</span>
-          <span class="trabajo-badge" style="color:${e.color};border-color:${e.color}">${e.label.toUpperCase()}</span>
-        </div>
-        ${t.unidad ? `<div class="trabajo-unidad">🚜 ${esc(t.unidad)}</div>` : ''}
-        ${t.descripcion ? `<div class="trabajo-desc">${esc(t.descripcion)}</div>` : ''}
-        <div class="trabajo-meta">
-          ${tecNoms.length ? `<span>👤 ${esc(tecNoms.join(', '))}</span>` : ''}
-          ${t.nota ? `<span class="trabajo-nota">📌 ${esc(t.nota)}</span>` : ''}
-          ${(t.historial&&t.historial.length) ? `<span>🕓 ${t.historial.length} nota${t.historial.length>1?'s':''}</span>` : ''}
-          ${t.estado!=='TERMINADO' ? `<button class="trabajo-agendar" data-agendar="${esc(t.id)}">📅 Agendar</button>
-          <button class="trabajo-agendar trabajo-fin" data-finalizar="${esc(t.id)}">✔ Finalizar</button>` : ''}
-        </div>
-      </div>`;
-    }).join('');
-  });
-
-  // Listeners
-  document.querySelectorAll('.trabajo-card').forEach(el => {
-    el.addEventListener('click', () => {
-      const t = trabajos.find(x => String(x.id)===el.dataset.id);
-      if (t) openTrabajoModal(t);
-    });
-  });
-  document.querySelectorAll('[data-agendar]').forEach(el => {
-    el.addEventListener('click', e => {
-      e.stopPropagation();
-      const t = trabajos.find(x => String(x.id)===el.dataset.agendar);
-      if (t) agendarTrabajo(t);
-    });
-  });
-  document.querySelectorAll('[data-finalizar]').forEach(el => {
-    el.addEventListener('click', e => {
-      e.stopPropagation();
-      const t = trabajos.find(x => String(x.id)===el.dataset.finalizar);
-      if (t) finalizarTrabajo(t);
-    });
-  });
-}
-
-// ── Modal trabajo ──
-function openTrabajoModal(t) {
-  editingTrabajoId = t ? t.id : null;
-  document.getElementById('trabajoTitle').textContent = t ? 'Editar trabajo' : 'Nuevo trabajo';
-  document.getElementById('tBtnDelete').style.display = t ? 'block' : 'none';
-  document.getElementById('tDiv').value = t ? t.division : 'CLIENTE';
-  document.getElementById('tEstado').innerHTML = ESTADOS_TRABAJO.map(e =>
-    `<option value="${e.id}" ${t&&t.estado===e.id?'selected':''}>${e.label}</option>`).join('');
-  document.getElementById('tTitulo').value = t ? (t.titulo||'') : '';
-  document.getElementById('tUnidad').value = t ? (t.unidad||'') : '';
-  document.getElementById('tDesc').value = t ? (t.descripcion||'') : '';
-  document.getElementById('tNota').value = t ? (t.nota||'') : '';
-  pickedTechs = new Set(t ? techList(t) : []);
-  renderTechPick();
-  renderHistorial(t);
-  document.getElementById('histInput').value = '';
-  document.getElementById('trabajoOverlay').classList.add('open');
-}
-
-function fmtTs(iso) {
-  const d = new Date(iso);
-  if (isNaN(d)) return '';
-  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0')
-    + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-}
-
-function renderHistorial(t) {
-  const list = document.getElementById('histList');
-  const inputRow = document.querySelector('.hist-input-row');
-  if (!t) {
-    list.innerHTML = '<div class="hist-empty">Guardá el trabajo primero para empezar el historial.</div>';
-    inputRow.style.display = 'none';
-    return;
-  }
-  inputRow.style.display = 'flex';
-  const hist = (t.historial || []).slice().reverse(); // más reciente arriba
-  if (!hist.length) {
-    list.innerHTML = '<div class="hist-empty">Sin anotaciones todavía.</div>';
-    return;
-  }
-  list.innerHTML = hist.map(h =>
-    `<div class="hist-item ${h.auto?'auto':''}"><span class="hist-ts">${fmtTs(h.ts)}</span>${esc(h.txt)}</div>`
-  ).join('');
-}
-
-async function addAnotacion() {
-  if (!editingTrabajoId) return;
-  const input = document.getElementById('histInput');
-  const txt = input.value.trim();
-  if (!txt) return;
-  const t = trabajos.find(x => x.id===editingTrabajoId);
-  if (!t) return;
-  if (!t.historial) t.historial = [];
-  t.historial.push({ ts: new Date().toISOString(), txt: txt });
-
-  // La anotación nueva pasa a ser la nota visible (📌) de la tarjeta
-  t.nota = txt;
-  document.getElementById('tNota').value = txt;
-
-  input.value = '';
-  renderHistorial(t);
-  renderTaller();
-  try {
-    await jsonpRequest({ action:'addHistorial', id: t.id, texto: txt });
-    await jsonpRequest({
-      action:'updateTrabajo', id: t.id,
-      division: t.division, titulo: t.titulo, unidad: t.unidad || '',
-      descripcion: t.descripcion || '', estado: t.estado,
-      nota: txt, tecnico: t.tecnico || ''
-    });
-  }
-  catch(e) { console.warn('addHistorial:', e.message); }
-}
-
-function closeTrabajoModal() {
-  editingTrabajoId = null;
-  document.getElementById('trabajoOverlay').classList.remove('open');
-}
-
-async function saveTrabajo() {
-  const data = {
-    division:    document.getElementById('tDiv').value,
-    titulo:      document.getElementById('tTitulo').value.trim().toUpperCase(),
-    unidad:      document.getElementById('tUnidad').value.trim().toUpperCase(),
-    descripcion: document.getElementById('tDesc').value.trim(),
-    estado:      document.getElementById('tEstado').value,
-    nota:        document.getElementById('tNota').value.trim(),
-    tecnico:     Array.from(pickedTechs).join(','),
-  };
-  if (!data.titulo) { alert('Completá el cliente'); return; }
-
-  if (editingTrabajoId) {
-    const t = trabajos.find(x => x.id===editingTrabajoId);
-    const estadoAnterior = t ? t.estado : null;
-    if (t) Object.assign(t, data);
-    const id = editingTrabajoId;
-
-    // Registrar automáticamente el cambio de estado en el historial
-    let logEstado = null;
-    if (t && estadoAnterior && estadoAnterior !== data.estado) {
-      logEstado = 'Estado: ' + estadoInfo(estadoAnterior).label + ' → ' + estadoInfo(data.estado).label;
-      if (!t.historial) t.historial = [];
-      t.historial.push({ ts: new Date().toISOString(), txt: logEstado, auto: true });
-    }
-
-    closeTrabajoModal();
-    renderTaller();
-    try {
-      await jsonpRequest(Object.assign({action:'updateTrabajo', id:id}, data));
-      if (logEstado) await jsonpRequest({ action:'addHistorial', id:id, texto: logEstado, auto: '1' });
-    }
-    catch(e) { console.warn('updateTrabajo:', e.message); }
-  } else {
-    const t = Object.assign({ id:'local_'+Date.now() }, data);
-    trabajos.push(t);
-    closeTrabajoModal();
-    renderTaller();
-    try {
-      const r = await jsonpRequest(Object.assign({action:'createTrabajo'}, data));
-      if (r.ok && r.id) t.id = r.id;
-    } catch(e) { console.warn('createTrabajo:', e.message); }
-  }
-}
-
-async function deleteTrabajo() {
-  if (!editingTrabajoId) return;
-  const t = trabajos.find(x => x.id===editingTrabajoId);
-  if (!t) { closeTrabajoModal(); return; }
-  if (!confirm(`¿Eliminar el trabajo de ${t.titulo}?`)) return;
-  trabajos = trabajos.filter(x => x.id!==editingTrabajoId);
-  const id = editingTrabajoId;
-  closeTrabajoModal();
-  renderTaller();
-  try { await jsonpRequest({action:'deleteTrabajo', id:id}); }
-  catch(e) { console.warn('deleteTrabajo:', e.message); }
-}
-
-// Agendar: pasar del pizarrón al tablero de citas con todo precargado
-function agendarTrabajo(t) {
-  switchTab('tablero');
-  selectedTipo = t.division==='INTERNO' ? 'I' : 'S';
-  const tl = techList(t);
-  openModal(undefined, tl[0] || undefined, '08:00');
-  fillTrabajoSelect(t.id, false);
-  document.getElementById('fDesc').value = [t.unidad, t.descripcion].filter(Boolean).join(' · ').toUpperCase();
-  renderTipoGrid();
-}
-
-document.getElementById('trabajoOverlay').addEventListener('click', function(e) {
-  if (e.target === this) closeTrabajoModal();
-});
-document.getElementById('fTrabajo').addEventListener('change', onTrabajoChange);
-document.getElementById('histInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') { e.preventDefault(); addAnotacion(); }
-});
-
-// ══════════════════════════════════════════
-// ── MODO TV (?tv=1) ──
-// ══════════════════════════════════════════
-const TV_MODE = new URLSearchParams(location.search).get('tv') === '1';
-const TV_ROTATE_MS  = 30000;   // 30s por vista
-const TV_REFRESH_MS = 120000;  // recargar datos cada 2 min
-
-if (TV_MODE) {
-  document.body.classList.add('tv-mode');
-
-  // Reloj
-  const tickClock = () => {
-    const now = new Date();
-    document.getElementById('tvClock').textContent =
-      now.toLocaleDateString('es-AR',{weekday:'short',day:'2-digit',month:'short'}).toUpperCase()
-      + '  ' + now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-  };
-  tickClock();
-  setInterval(tickClock, 15000);
-
-  // Secuencia de vistas
-  const TV_VIEWS = [
-    { id:'semana',    label:'AGENDA SEMANAL'     },
-    { id:'mes',       label:'VISTA MENSUAL'      },
-    { id:'taller',    label:'TRABAJOS DE TALLER' },
-    { id:'analytics', label:'INDICADORES'        },
-  ];
-  let tvIdx = 0;
-
-  async function tvShow(view) {
-    document.getElementById('tvView').textContent = view.label;
-    // siempre anclado a la fecha actual
-    currentMonday = getMonday(new Date());
-    boardMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    analyticsMonday = getMonday(new Date());
-    analyticsMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-
-    if (view.id === 'analytics') {
-      switchTab('analytics');
-    } else if (view.id === 'taller') {
-      switchTab('taller');
-      loadTrabajos(true);
-    } else {
-      switchTab('tablero');
-      setBoardView(view.id);
-    }
-  }
-
-  async function tvNext() {
-    tvIdx = (tvIdx + 1) % TV_VIEWS.length;
-    tvShow(TV_VIEWS[tvIdx]);
-  }
-
-  // Arrancar en la semana actual y rotar
-  tvShow(TV_VIEWS[0]);
-  setInterval(tvNext, TV_ROTATE_MS);
-
-  // Recarga de datos periódica
-  setInterval(() => {
-    loadedRanges.clear();
-    tasks = [];
-    if (currentTab === 'analytics') renderAnalytics();
-    else render();
-  }, TV_REFRESH_MS);
-}
-
-// ── SERVICE WORKER — registro con auto-actualización ──
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function() {
-    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
-      .then(function(reg) {
-        // Chequear actualizaciones cada 30 min (clave para el tele siempre prendido)
-        setInterval(function() { reg.update().catch(function(){}); }, 30 * 60 * 1000);
-      })
-      .catch(function(){});
-
-    // Cuando se activa un service worker nuevo, recargar UNA vez para tomar la versión fresca
-    var reloaded = false;
-    navigator.serviceWorker.addEventListener("controllerchange", function() {
-      if (reloaded) return;
-      reloaded = true;
-      location.reload();
-    });
-  });
-}
-</script>
-</body>
-</html>
+      col.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:10px
