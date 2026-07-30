@@ -25,16 +25,16 @@
     --accent2: #3ecfcf;
 
     /* Tipos de tarea */
-    --color-V: #3ecfcf;   /* Viaje */
-    --color-S: #4caf82;   /* Servicio */
-    --color-R: #f5a623;   /* Reparación */
-    --color-G: #a78bfa;   /* Garantía */
-    --color-D: #60a5fa;   /* Diagnóstico */
-    --color-I: #94a3b8;   /* Interno */
-    --color-P: #f472b6;   /* Pre-entrega/PDI */
-    --color-C: #fb923c;   /* Capacitación */
+    --color-V: #ffffff;   /* Viaje — blanco */
+    --color-S: #22c55e;   /* Servicio / mantenimiento — verde */
+    --color-R: #ef4444;   /* Reparación — rojo */
+    --color-G: #38bdf8;   /* Garantía — celeste */
+    --color-D: #facc15;   /* Diagnóstico — amarillo */
+    --color-I: #f472b6;   /* Interno — rosa */
+    --color-P: #f9a8d4;   /* Pre-entrega/PDI — rosa claro */
+    --color-C: #fb923c;   /* Capacitación — naranja */
     --color-NO: #2a3048;  /* No disponible */
-    --color-DEM: #ef4444; /* Demora */
+    --color-DEM: #2f6fed; /* Demora — azul */
     --color-PLM: #e879f9; /* Precisión/PLM */
 
     --radius: 8px;
@@ -625,11 +625,11 @@
   .task-C  { background: var(--color-C); }
   .task-PLM { background: var(--color-PLM); }
 
-  /* Demora: el estado crítico — rojo pleno, tipografía invertida y halo */
+  /* Demora: el estado crítico — azul pleno, tipografía invertida y halo */
   .task-DEM {
     background: var(--color-DEM);
     color: #fff;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.4), 0 0 0 2px rgba(239,68,68,.3);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.4), 0 0 0 2px rgba(47,111,237,.35);
   }
   .task-DEM .task-type { background: rgba(255,255,255,.28); }
 
@@ -652,16 +652,16 @@
     background-blend-mode: normal;
     filter: none;
   }
-  body.color-suave .task-V  { background: rgba(62,207,207,.18);  color: var(--color-V); }
-  body.color-suave .task-S  { background: rgba(76,175,130,.18);  color: var(--color-S); }
-  body.color-suave .task-R  { background: rgba(245,166,35,.18);  color: var(--color-R); }
-  body.color-suave .task-G  { background: rgba(167,139,250,.18); color: var(--color-G); }
-  body.color-suave .task-D  { background: rgba(96,165,250,.18);  color: var(--color-D); }
-  body.color-suave .task-I  { background: rgba(148,163,184,.12); color: var(--color-I); }
-  body.color-suave .task-P  { background: rgba(244,114,182,.18); color: var(--color-P); }
+  body.color-suave .task-V  { background: rgba(255,255,255,.16); color: #ffffff; }
+  body.color-suave .task-S  { background: rgba(34,197,94,.18);   color: var(--color-S); }
+  body.color-suave .task-R  { background: rgba(239,68,68,.18);   color: var(--color-R); }
+  body.color-suave .task-G  { background: rgba(56,189,248,.18);  color: var(--color-G); }
+  body.color-suave .task-D  { background: rgba(250,204,21,.18);  color: var(--color-D); }
+  body.color-suave .task-I  { background: rgba(244,114,182,.18); color: var(--color-I); }
+  body.color-suave .task-P  { background: rgba(249,168,212,.18); color: var(--color-P); }
   body.color-suave .task-C  { background: rgba(251,146,60,.18);  color: var(--color-C); }
   body.color-suave .task-PLM { background: rgba(232,121,249,.18); color: var(--color-PLM); }
-  body.color-suave .task-DEM { background: rgba(239,68,68,.18); color: var(--color-DEM); box-shadow: none; }
+  body.color-suave .task-DEM { background: rgba(47,111,237,.2); color: #7ba7ff; box-shadow: none; }
   body.color-suave .task-block .task-type, body.color-suave .task-span .task-type { background: transparent; padding: 0; opacity: .75; font-weight: 600; }
 
   /* Span de múltiples celdas */
@@ -806,16 +806,16 @@
     transition: all .15s;
   }
   .tipo-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .tipo-btn.sel-V  { background: rgba(62,207,207,.2);  border-color: var(--color-V);  color: var(--color-V);  }
-  .tipo-btn.sel-S  { background: rgba(76,175,130,.2);  border-color: var(--color-S);  color: var(--color-S);  }
-  .tipo-btn.sel-R  { background: rgba(245,166,35,.2);  border-color: var(--color-R);  color: var(--color-R);  }
-  .tipo-btn.sel-G  { background: rgba(167,139,250,.2); border-color: var(--color-G);  color: var(--color-G);  }
-  .tipo-btn.sel-D  { background: rgba(96,165,250,.2);  border-color: var(--color-D);  color: var(--color-D);  }
-  .tipo-btn.sel-I  { background: rgba(148,163,184,.15);border-color: var(--color-I);  color: var(--color-I);  }
-  .tipo-btn.sel-P  { background: rgba(244,114,182,.2); border-color: var(--color-P);  color: var(--color-P);  }
+  .tipo-btn.sel-V  { background: rgba(255,255,255,.16); border-color: var(--color-V);  color: var(--color-V);  }
+  .tipo-btn.sel-S  { background: rgba(34,197,94,.2);   border-color: var(--color-S);  color: var(--color-S);  }
+  .tipo-btn.sel-R  { background: rgba(239,68,68,.2);   border-color: var(--color-R);  color: var(--color-R);  }
+  .tipo-btn.sel-G  { background: rgba(56,189,248,.2);  border-color: var(--color-G);  color: var(--color-G);  }
+  .tipo-btn.sel-D  { background: rgba(250,204,21,.2);  border-color: var(--color-D);  color: var(--color-D);  }
+  .tipo-btn.sel-I  { background: rgba(244,114,182,.2); border-color: var(--color-I);  color: var(--color-I);  }
+  .tipo-btn.sel-P  { background: rgba(249,168,212,.2); border-color: var(--color-P);  color: var(--color-P);  }
   .tipo-btn.sel-C  { background: rgba(251,146,60,.2);  border-color: var(--color-C);  color: var(--color-C);  }
   .tipo-btn.sel-NO  { background: rgba(42,48,72,.4);   border-color: var(--text-dim); color: var(--text-dim); }
-  .tipo-btn.sel-DEM { background: rgba(239,68,68,.2);  border-color: var(--color-DEM); color: var(--color-DEM); }
+  .tipo-btn.sel-DEM { background: rgba(47,111,237,.2); border-color: var(--color-DEM); color: var(--color-DEM); }
   .tipo-btn.sel-PLM { background: rgba(232,121,249,.2);border-color: var(--color-PLM); color: var(--color-PLM); }
 
   /* Tipo seleccionado: campo pleno, igual que el bloque en el pizarrón */
@@ -1329,7 +1329,7 @@
       <div id="colClientes"></div>
     </div>
     <div class="taller-col">
-      <div class="taller-col-title" style="color:var(--color-DEM)">🏠 INTERNO <span id="cntInterno"></span></div>
+      <div class="taller-col-title" style="color:var(--color-I)">🏠 INTERNO <span id="cntInterno"></span></div>
       <div id="colInterno"></div>
     </div>
   </div>
@@ -1384,7 +1384,7 @@
     </div>
 
     <div class="modal-actions">
-      <button class="btn-delete" id="tBtnDelete" onclick="deleteTrabajo()" style="display:none;background:transparent;border:1px solid var(--color-DEM);color:var(--color-DEM);border-radius:var(--radius);padding:9px 14px;font-family:'Inter',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-right:auto;">Eliminar</button>
+      <button class="btn-delete" id="tBtnDelete" onclick="deleteTrabajo()" style="display:none;background:transparent;border:1px solid #ef4444;color:#ef4444;border-radius:var(--radius);padding:9px 14px;font-family:'Inter',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-right:auto;">Eliminar</button>
       <button class="btn-cancel" onclick="closeTrabajoModal()">Cancelar</button>
       <button class="btn-save" onclick="saveTrabajo()">Guardar</button>
     </div>
@@ -1519,7 +1519,7 @@
       <textarea id="fDemora" placeholder="Describí brevemente qué causó la demora..."></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn-delete" id="btnDelete" onclick="deleteFromModal()" style="display:none;background:transparent;border:1px solid var(--color-DEM);color:var(--color-DEM);border-radius:var(--radius);padding:9px 14px;font-family:'Inter',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-right:auto;">Eliminar</button>
+      <button class="btn-delete" id="btnDelete" onclick="deleteFromModal()" style="display:none;background:transparent;border:1px solid #ef4444;color:#ef4444;border-radius:var(--radius);padding:9px 14px;font-family:'Inter',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-right:auto;">Eliminar</button>
       <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
       <button class="btn-save" id="btnSave" onclick="saveTask()">Guardar cita</button>
     </div>
@@ -1552,7 +1552,6 @@ const TIPOS = [
   { id:'G',   label:'Garantía',        short:'G'   },
   { id:'D',   label:'Diagnóstico',     short:'D'   },
   { id:'I',   label:'Interno',         short:'I'   },
-  { id:'P',   label:'PDI/Pre-entrega', short:'P'   },
   { id:'C',   label:'Capacitación',    short:'C'   },
   { id:'DEM', label:'Demora',          short:'DEM' },
   { id:'NO',  label:'No disponible',   short:'NO'  },
@@ -2779,7 +2778,7 @@ function renderKPIs(pts) {
 }
 
 // ── Donut chart ──
-const TIPO_COLORS = {V:'#3ecfcf',S:'#4caf82',R:'#f5a623',G:'#a78bfa',D:'#60a5fa',I:'#94a3b8',P:'#f472b6',C:'#fb923c',DEM:'#ef4444',PLM:'#e879f9'};
+const TIPO_COLORS = {V:'#ffffff',S:'#22c55e',R:'#ef4444',G:'#38bdf8',D:'#facc15',I:'#f472b6',P:'#f9a8d4',C:'#fb923c',DEM:'#2f6fed',PLM:'#e879f9'};
 
 function renderDonut(pts) {
   const counts = {};
