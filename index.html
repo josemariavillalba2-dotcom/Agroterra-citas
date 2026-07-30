@@ -2530,6 +2530,7 @@ let editingId = null;
 function openModal(dateStr, techId, startTime, task) {
   editingId = task ? task.id : null;
   document.getElementById('modalOverlay').classList.add('open');
+  document.querySelector('#modalOverlay .modal').scrollTop = 0;
   document.getElementById('modalTitle').textContent = task ? 'Editar cita' : 'Nueva cita';
   document.getElementById('btnSave').textContent = task ? 'Guardar cambios' : 'Guardar cita';
   document.getElementById('btnDelete').style.display = task ? 'block' : 'none';
@@ -3311,4 +3312,759 @@ function renderTaller() {
     document.getElementById(div==='CLIENTE' ? 'cntClientes' : 'cntInterno').textContent =
       items.filter(t=>t.estado!=='TERMINADO').length + ' activos';
     if (!items.length) {
-      col.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:10px
+      col.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:10px 4px;">Sin trabajos cargados</div>';
+      return;
+    }
+    col.innerHTML = items.map(t => {
+      const e = estadoInfo(t.estado);
+      const tecNoms = techNames(t);
+      return `<div class="trabajo-card ${t.estado==='TERMINADO'?'done':''}" data-id="${esc(t.id)}" style="border-left-color:${e.color}">
+        <div class="trabajo-top">
+          <span class="trabajo-titulo">${esc(t.titulo)}</span>
+          <span class="trabajo-badge" style="color:${e.color};border-color:${e.color}">${e.label.toUpperCase()}</span>
+        </div>
+        ${t.unidad ? `<div class="trabajo-unidad">🚜 ${esc(t.unidad)}</div>` : ''}
+        ${t.descripcion ? `<div class="trabajo-desc">${esc(t.descripcion)}</div>` : ''}
+        <div class="trabajo-meta">
+          ${tecNoms.length ? `<span>👤 ${esc(tecNoms.join(', '))}</span>` : ''}
+          ${t.nota ? `<span class="trabajo-nota">📌 ${esc(t.nota)}</span>` : ''}
+          ${(t.historial&&t.historial.length) ? `<span>🕓 ${t.historial.length} nota${t.historial.length>1?'s':''}</span>` : ''}
+          ${t.estado!=='TERMINADO' ? `<button class="trabajo-agendar" data-agendar="${esc(t.id)}">📅 Agendar</button>
+          <button class="trabajo-agendar trabajo-fin" data-finalizar="${esc(t.id)}">✔ Finalizar</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  });
+
+  // Listeners
+  document.querySelectorAll('.trabajo-card').forEach(el => {
+    el.addEventListener('click', () => {
+      const t = trabajos.find(x => String(x.id)===el.dataset.id);
+      if (t) openTrabajoModal(t);
+    });
+  });
+  document.querySelectorAll('[data-agendar]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const t = trabajos.find(x => String(x.id)===el.dataset.agendar);
+      if (t) agendarTrabajo(t);
+    });
+  });
+  document.querySelectorAll('[data-finalizar]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const t = trabajos.find(x => String(x.id)===el.dataset.finalizar);
+      if (t) finalizarTrabajo(t);
+    });
+  });
+}
+
+// ── Modal trabajo ──
+function openTrabajoModal(t) {
+  editingTrabajoId = t ? t.id : null;
+  document.getElementById('trabajoTitle').textContent = t ? 'Editar trabajo' : 'Nuevo trabajo';
+  document.getElementById('tBtnDelete').style.display = t ? 'block' : 'none';
+  document.getElementById('tDiv').value = t ? t.division : 'CLIENTE';
+  document.getElementById('tEstado').innerHTML = ESTADOS_TRABAJO.map(e =>
+    `<option value="${e.id}" ${t&&t.estado===e.id?'selected':''}>${e.label}</option>`).join('');
+  document.getElementById('tTitulo').value = t ? (t.titulo||'') : '';
+  document.getElementById('tUnidad').value = t ? (t.unidad||'') : '';
+  document.getElementById('tDesc').value = t ? (t.descripcion||'') : '';
+  document.getElementById('tNota').value = t ? (t.nota||'') : '';
+  pickedTechs = new Set(t ? techList(t) : []);
+  renderTechPick();
+  renderHistorial(t);
+  document.getElementById('histInput').value = '';
+  document.getElementById('trabajoOverlay').classList.add('open');
+  document.querySelector('#trabajoOverlay .modal').scrollTop = 0;
+}
+
+function fmtTs(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0')
+    + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function renderHistorial(t) {
+  const list = document.getElementById('histList');
+  const inputRow = document.querySelector('.hist-input-row');
+  if (!t) {
+    list.innerHTML = '<div class="hist-empty">Guardá el trabajo primero para empezar el historial.</div>';
+    inputRow.style.display = 'none';
+    return;
+  }
+  inputRow.style.display = 'flex';
+  const hist = (t.historial || []).slice().reverse(); // más reciente arriba
+  if (!hist.length) {
+    list.innerHTML = '<div class="hist-empty">Sin anotaciones todavía.</div>';
+    return;
+  }
+  list.innerHTML = hist.map(h =>
+    `<div class="hist-item ${h.auto?'auto':''}"><span class="hist-ts">${fmtTs(h.ts)}</span>${esc(h.txt)}</div>`
+  ).join('');
+}
+
+async function addAnotacion() {
+  if (!editingTrabajoId) return;
+  const input = document.getElementById('histInput');
+  const txt = input.value.trim();
+  if (!txt) return;
+  const t = trabajos.find(x => x.id===editingTrabajoId);
+  if (!t) return;
+  if (!t.historial) t.historial = [];
+  t.historial.push({ ts: new Date().toISOString(), txt: txt });
+
+  // La anotación nueva pasa a ser la nota visible (📌) de la tarjeta
+  t.nota = txt;
+  document.getElementById('tNota').value = txt;
+
+  input.value = '';
+  renderHistorial(t);
+  renderTaller();
+  try {
+    await jsonpRequest({ action:'addHistorial', id: t.id, texto: txt });
+    await jsonpRequest({
+      action:'updateTrabajo', id: t.id,
+      division: t.division, titulo: t.titulo, unidad: t.unidad || '',
+      descripcion: t.descripcion || '', estado: t.estado,
+      nota: txt, tecnico: t.tecnico || ''
+    });
+  }
+  catch(e) { console.warn('addHistorial:', e.message); }
+}
+
+function closeTrabajoModal() {
+  editingTrabajoId = null;
+  document.getElementById('trabajoOverlay').classList.remove('open');
+}
+
+async function saveTrabajo() {
+  const data = {
+    division:    document.getElementById('tDiv').value,
+    titulo:      document.getElementById('tTitulo').value.trim().toUpperCase(),
+    unidad:      document.getElementById('tUnidad').value.trim().toUpperCase(),
+    descripcion: document.getElementById('tDesc').value.trim(),
+    estado:      document.getElementById('tEstado').value,
+    nota:        document.getElementById('tNota').value.trim(),
+    tecnico:     Array.from(pickedTechs).join(','),
+  };
+  if (!data.titulo) { alert('Completá el cliente'); return; }
+
+  if (editingTrabajoId) {
+    const t = trabajos.find(x => x.id===editingTrabajoId);
+    const estadoAnterior = t ? t.estado : null;
+    if (t) Object.assign(t, data);
+    const id = editingTrabajoId;
+
+    // Registrar automáticamente el cambio de estado en el historial
+    let logEstado = null;
+    if (t && estadoAnterior && estadoAnterior !== data.estado) {
+      logEstado = 'Estado: ' + estadoInfo(estadoAnterior).label + ' → ' + estadoInfo(data.estado).label;
+      if (!t.historial) t.historial = [];
+      t.historial.push({ ts: new Date().toISOString(), txt: logEstado, auto: true });
+    }
+
+    closeTrabajoModal();
+    renderTaller();
+    try {
+      await jsonpRequest(Object.assign({action:'updateTrabajo', id:id}, data));
+      if (logEstado) await jsonpRequest({ action:'addHistorial', id:id, texto: logEstado, auto: '1' });
+    }
+    catch(e) { console.warn('updateTrabajo:', e.message); }
+  } else {
+    const t = Object.assign({ id:'local_'+Date.now() }, data);
+    trabajos.push(t);
+    closeTrabajoModal();
+    renderTaller();
+    try {
+      const r = await jsonpRequest(Object.assign({action:'createTrabajo'}, data));
+      if (r.ok && r.id) t.id = r.id;
+    } catch(e) { console.warn('createTrabajo:', e.message); }
+  }
+}
+
+async function deleteTrabajo() {
+  if (!editingTrabajoId) return;
+  const t = trabajos.find(x => x.id===editingTrabajoId);
+  if (!t) { closeTrabajoModal(); return; }
+  if (!confirm(`¿Eliminar el trabajo de ${t.titulo}?`)) return;
+  trabajos = trabajos.filter(x => x.id!==editingTrabajoId);
+  const id = editingTrabajoId;
+  closeTrabajoModal();
+  renderTaller();
+  try { await jsonpRequest({action:'deleteTrabajo', id:id}); }
+  catch(e) { console.warn('deleteTrabajo:', e.message); }
+}
+
+// Agendar: pasar del pizarrón al tablero de citas con todo precargado
+function agendarTrabajo(t) {
+  switchTab('tablero');
+  selectedTipo = t.division==='INTERNO' ? 'I' : 'S';
+  const tl = techList(t);
+  openModal(undefined, tl[0] || undefined, '08:00');
+  fillTrabajoSelect(t.id, false);
+  document.getElementById('fDesc').value = [t.unidad, t.descripcion].filter(Boolean).join(' · ').toUpperCase();
+  renderTipoGrid();
+}
+
+document.getElementById('trabajoOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeTrabajoModal();
+});
+document.getElementById('fTrabajo').addEventListener('change', onTrabajoChange);
+document.getElementById('histInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); addAnotacion(); }
+});
+
+// ══════════════════════════════════════════
+// ── MODO TV (?tv=1) ──
+// ══════════════════════════════════════════
+// ── RECEPCIÓN DE CASO ──
+// Un caso entra por llamado o correo, se releva, se presupuesta y termina
+// aprobado (pasa a Taller) o rechazado (queda medido el porqué).
+const ESTADOS_CASO = [
+  { id:'PENDIENTE', label:'Pendiente de relevamiento', corto:'Pendiente',   color:'#facc15' },
+  { id:'RELEVADO',  label:'Listo para presupuestar',   corto:'A presupuestar', color:'#fb923c' },
+  { id:'ENVIADO',   label:'Presupuesto enviado',       corto:'Enviado',     color:'#38bdf8' },
+  { id:'APROBADO',  label:'Aprobado',                  corto:'Aprobado',    color:'#22c55e' },
+  { id:'RECHAZADO', label:'Rechazado',                 corto:'Rechazado',   color:'#ef4444' },
+  { id:'TALLER',    label:'Pasó a taller',             corto:'En taller',   color:'#94a3b8' },
+];
+const URGENCIAS = [
+  { id:'PARADA',     label:'Máquina parada', color:'#ef4444' },
+  { id:'URGENTE',    label:'Urgente',        color:'#fb923c' },
+  { id:'PROGRAMABLE',label:'Programable',    color:'#38bdf8' },
+  { id:'SINAPURO',   label:'Sin apuro',      color:'#94a3b8' },
+];
+const MOTIVOS_RECHAZO = {
+  PRECIO:'Precio', PLAZO:'Plazo de entrega', OTRO_TALLER:'Lo hace otro taller',
+  NO_LO_HACE:'Decide no hacerlo', OTRO:'Otro'
+};
+const ORIGENES = { LLAMADO:'Llamado del cliente', CORREO:'Correo de Ventas', INTERNO:'Interno' };
+
+let casos = [];
+let casosLoaded = false;
+let editingCasoId = null;
+let verCasosCerrados = false;
+let casoUrgencia = 'URGENTE';
+let casoFotosNuevas = [];
+let rechazandoId = null;
+
+function estadoCaso(id) { return ESTADOS_CASO.find(e => e.id===id) || ESTADOS_CASO[0]; }
+function urgenciaInfo(id) { return URGENCIAS.find(u => u.id===id) || URGENCIAS[1]; }
+function diasDelCaso(iso) {
+  if (!iso) return 0;
+  const d = new Date(iso);
+  if (isNaN(d)) return 0;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+function fotoIds(c) { return String(c.fotos || '').split(',').map(s=>s.trim()).filter(Boolean); }
+
+async function loadCasos(force) {
+  if (casosLoaded && !force) { renderRecepcion(); return; }
+  if (!API_URL || API_URL.startsWith('TU_')) { renderRecepcion(); return; }
+  showLoading('Cargando casos…');
+  try {
+    const r = await jsonpRequest({ action:'getCasos' });
+    if (r.ok) { casos = r.data || []; casosLoaded = true; }
+  } catch(e) {
+    console.warn('No se pudieron cargar casos:', e.message);
+  } finally {
+    hideLoading();
+    renderRecepcion();
+  }
+}
+
+function toggleCasosCerrados() {
+  verCasosCerrados = !verCasosCerrados;
+  renderRecepcion();
+}
+
+function renderRecepcion() {
+  const cont = document.getElementById('recCols');
+  if (!cont) return;
+
+  document.getElementById('recCounters').innerHTML = ESTADOS_CASO.map(e => {
+    const n = casos.filter(c => c.estado===e.id).length;
+    if (!n) return '';
+    return `<span class="tc-pill" style="color:${e.color};border-color:${e.color}">${e.corto}: ${n}</span>`;
+  }).join('');
+
+  const nCerrados = casos.filter(c => c.estado==='TALLER' || c.estado==='RECHAZADO').length;
+  document.getElementById('btnVerCerrados').textContent =
+    (verCasosCerrados ? '👁 Ocultar cerrados' : '✔ Cerrados') + (nCerrados ? ` (${nCerrados})` : '');
+
+  const visibles = verCasosCerrados
+    ? ESTADOS_CASO
+    : ESTADOS_CASO.filter(e => e.id!=='TALLER' && e.id!=='RECHAZADO');
+
+  const ordenUrg = {};
+  URGENCIAS.forEach((u,i) => ordenUrg[u.id] = i);
+
+  cont.style.gridTemplateColumns = `repeat(${visibles.length}, minmax(240px, 1fr))`;
+  cont.innerHTML = visibles.map(e => {
+    const items = casos.filter(c => c.estado===e.id).sort((a,b) => {
+      const ua = ordenUrg[a.urgencia], ub = ordenUrg[b.urgencia];
+      const na = (ua===undefined?9:ua), nb = (ub===undefined?9:ub);
+      if (na !== nb) return na - nb;
+      return String(a.fecha||'').localeCompare(String(b.fecha||''));
+    });
+    return `<div class="rec-col">
+      <div class="rec-col-title" style="color:${e.color}">${e.label} <span class="n">${items.length}</span></div>
+      ${items.map(casoCardHTML).join('') || '<div class="rec-empty">Sin casos</div>'}
+    </div>`;
+  }).join('');
+
+  cont.querySelectorAll('.caso-card').forEach(el => {
+    el.addEventListener('click', () => {
+      const c = casos.find(x => String(x.id)===el.dataset.id);
+      if (c) openCasoModal(c);
+    });
+  });
+  cont.querySelectorAll('[data-accion]').forEach(el => {
+    el.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const c = casos.find(x => String(x.id)===el.dataset.caso);
+      if (!c) return;
+      const a = el.dataset.accion;
+      if (a==='relevado')  cambiarEstadoCaso(c, 'RELEVADO');
+      if (a==='enviado')   marcarEnviado(c);
+      if (a==='aprobado')  aprobarCaso(c);
+      if (a==='rechazado') openRechazo(c);
+      if (a==='taller')    pasarATaller(c);
+    });
+  });
+}
+
+function casoCardHTML(c) {
+  const u = urgenciaInfo(c.urgencia);
+  const dias = diasDelCaso(c.fecha);
+  const equipo = [c.unidad, c.chasis && ('Chasis ' + c.chasis), c.horas].filter(Boolean).join(' · ');
+  const nFotos = fotoIds(c).length;
+
+  let acciones = '';
+  if (c.estado==='PENDIENTE') {
+    acciones = `<button class="caso-btn" data-accion="relevado" data-caso="${c.id}">Relevado →</button>`;
+  } else if (c.estado==='RELEVADO') {
+    acciones = `<button class="caso-btn go" data-accion="enviado" data-caso="${c.id}">Presupuesto enviado →</button>`;
+  } else if (c.estado==='ENVIADO') {
+    acciones = `<button class="caso-btn ok" data-accion="aprobado" data-caso="${c.id}">✔ Aprobó</button>` +
+               `<button class="caso-btn no" data-accion="rechazado" data-caso="${c.id}">✕ Rechazó</button>`;
+  } else if (c.estado==='APROBADO') {
+    acciones = `<button class="caso-btn go" data-accion="taller" data-caso="${c.id}">→ Pasar a taller</button>`;
+  }
+
+  const tags = [];
+  if (c.garantia==='SI') tags.push('<span class="caso-tag gar">Garantía</span>');
+  if (c.origen) tags.push(`<span class="caso-tag">${esc(ORIGENES[c.origen] || c.origen)}</span>`);
+  if (c.recibidoPor) tags.push(`<span class="caso-tag">${esc(c.recibidoPor)}</span>`);
+  if (c.presupuestoMonto) tags.push(`<span class="caso-tag plata">$ ${esc(c.presupuestoMonto)}</span>`);
+  if (nFotos) tags.push(`<span class="caso-tag">📷 ${nFotos}</span>`);
+  if (c.estado==='RECHAZADO' && c.motivoRechazo)
+    tags.push(`<span class="caso-tag" style="border-color:#ef4444;color:#ef4444">${esc(MOTIVOS_RECHAZO[c.motivoRechazo]||c.motivoRechazo)}</span>`);
+
+  return `<div class="caso-card" data-id="${c.id}" style="border-left-color:${u.color}">
+    <div class="caso-top">
+      <span class="caso-cliente">${esc(c.cliente || 'Sin cliente')}</span>
+      <span class="caso-urg" style="background:${u.color};color:${c.urgencia==='PARADA'?'#fff':'#0f1117'}">${u.label}</span>
+    </div>
+    ${equipo ? `<div class="caso-unidad">${esc(equipo)}</div>` : ''}
+    <div class="caso-desc">${esc(c.descripcion || '')}</div>
+    <div class="caso-meta">${tags.join('')}
+      <span class="caso-dias ${dias>=7?'viejo':''}">${dias===0?'hoy':'hace '+dias+' día'+(dias>1?'s':'')}</span>
+    </div>
+    ${acciones ? `<div class="caso-actions">${acciones}</div>` : ''}
+  </div>`;
+}
+
+function renderUrgPick() {
+  document.getElementById('cUrgPick').innerHTML = URGENCIAS.map(u => {
+    const on = casoUrgencia===u.id;
+    const st = on ? `background:${u.color};border-color:${u.color};color:${u.id==='PARADA'?'#fff':'#0f1117'}` : '';
+    return `<div class="pick-opt ${on?'on':''}" data-urg="${u.id}" style="${st}">${u.label}</div>`;
+  }).join('');
+  document.querySelectorAll('#cUrgPick .pick-opt').forEach(el => {
+    el.addEventListener('click', () => { casoUrgencia = el.dataset.urg; renderUrgPick(); });
+  });
+}
+
+function renderCasoFotos(c) {
+  const cont = document.getElementById('cFotos');
+  const guardadas = c ? fotoIds(c).map(id =>
+    `<a href="https://drive.google.com/file/d/${id}/view" target="_blank" rel="noopener" style="background-image:url(https://drive.google.com/thumbnail?id=${id}&sz=w200)" title="Abrir foto"></a>`
+  ).join('') : '';
+  const nuevas = casoFotosNuevas.map((f,i) =>
+    `<span class="fthumb" style="background-image:url(${f.data})"><span class="x" data-i="${i}">×</span></span>`
+  ).join('');
+  cont.innerHTML = guardadas + nuevas;
+  cont.querySelectorAll('.x').forEach(el => {
+    el.addEventListener('click', ev => {
+      ev.stopPropagation();
+      casoFotosNuevas.splice(parseInt(el.dataset.i,10), 1);
+      renderCasoFotos(c);
+    });
+  });
+}
+
+function openCasoModal(c) {
+  editingCasoId = c ? c.id : null;
+  casoFotosNuevas = [];
+  document.getElementById('casoTitle').textContent = c ? 'Caso — ' + (c.cliente || '') : 'Nuevo caso';
+  document.getElementById('cRecibido').value = c ? (c.recibidoPor || 'Mara') : 'Mara';
+  document.getElementById('cOrigen').value   = c ? (c.origen || 'LLAMADO') : 'LLAMADO';
+  document.getElementById('cCliente').value  = c ? (c.cliente || '') : '';
+  document.getElementById('cContacto').value = c ? (c.contacto || '') : '';
+  document.getElementById('cGarantia').value = c ? (c.garantia || 'NO') : 'NO';
+  document.getElementById('cUnidad').value   = c ? (c.unidad || '') : '';
+  document.getElementById('cChasis').value   = c ? (c.chasis || '') : '';
+  document.getElementById('cHoras').value    = c ? (c.horas || '') : '';
+  document.getElementById('cDesc').value     = c ? (c.descripcion || '') : '';
+  document.getElementById('cComent').value   = c ? (c.comentarios || '') : '';
+  document.getElementById('cPresupNro').value   = c ? (c.presupuestoNro || '') : '';
+  document.getElementById('cPresupMonto').value = c ? (c.presupuestoMonto || '') : '';
+  casoUrgencia = c ? (c.urgencia || 'URGENTE') : 'URGENTE';
+  renderUrgPick();
+  renderCasoFotos(c);
+
+  const sel = document.getElementById('cEstado');
+  sel.innerHTML = ESTADOS_CASO.map(e => `<option value="${e.id}">${e.label}</option>`).join('');
+  sel.value = c ? (c.estado || 'PENDIENTE') : 'PENDIENTE';
+
+  const mostrarPresup = ['RELEVADO','ENVIADO','APROBADO','RECHAZADO','TALLER'].indexOf(sel.value) >= 0;
+  document.getElementById('cPresupRow').style.display = mostrarPresup ? 'grid' : 'none';
+
+  document.getElementById('cBtnDelete').style.display = c ? 'block' : 'none';
+  document.getElementById('cHistBox').style.display = c ? 'block' : 'none';
+  if (c) renderCasoHist(c);
+
+  document.getElementById('casoOverlay').classList.add('open');
+  document.querySelector('#casoOverlay .modal').scrollTop = 0;
+}
+
+function closeCasoModal() {
+  editingCasoId = null;
+  casoFotosNuevas = [];
+  document.getElementById('casoOverlay').classList.remove('open');
+}
+
+function renderCasoHist(c) {
+  const list = document.getElementById('cHistList');
+  const h = (c.historial || []).slice().reverse();
+  list.innerHTML = h.length ? h.map(x => {
+    const d = new Date(x.ts);
+    const f = isNaN(d) ? '' : d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) + ' ' +
+                              d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    return `<div class="hist-item"><span class="hist-ts">${f}</span> ${esc(x.txt)}</div>`;
+  }).join('') : '<div style="color:var(--text-dim);font-size:11px">Sin anotaciones</div>';
+}
+
+async function addCasoNota() {
+  const input = document.getElementById('cHistInput');
+  const txt = input.value.trim();
+  if (!txt || !editingCasoId) return;
+  const c = casos.find(x => String(x.id)===String(editingCasoId));
+  if (!c) return;
+  if (!c.historial) c.historial = [];
+  c.historial.push({ ts: new Date().toISOString(), txt: txt });
+  input.value = '';
+  renderCasoHist(c);
+  try { await jsonpRequest({ action:'addHistorialCaso', id:c.id, texto:txt }); }
+  catch(e) { console.warn('addHistorialCaso:', e.message); }
+}
+
+function datosCasoDesdeForm() {
+  return {
+    recibidoPor:      document.getElementById('cRecibido').value,
+    origen:           document.getElementById('cOrigen').value,
+    cliente:          document.getElementById('cCliente').value.trim().toUpperCase(),
+    contacto:         document.getElementById('cContacto').value.trim(),
+    garantia:         document.getElementById('cGarantia').value,
+    unidad:           document.getElementById('cUnidad').value.trim().toUpperCase(),
+    chasis:           document.getElementById('cChasis').value.trim().toUpperCase(),
+    horas:            document.getElementById('cHoras').value.trim(),
+    descripcion:      document.getElementById('cDesc').value.trim(),
+    urgencia:         casoUrgencia,
+    comentarios:      document.getElementById('cComent').value.trim(),
+    estado:           document.getElementById('cEstado').value,
+    presupuestoNro:   document.getElementById('cPresupNro').value.trim(),
+    presupuestoMonto: document.getElementById('cPresupMonto').value.trim(),
+  };
+}
+
+async function saveCaso() {
+  const data = datosCasoDesdeForm();
+  if (!data.cliente) { alert('Completá el cliente'); return; }
+  if (!data.descripcion) { alert('Completá la descripción de la falla'); return; }
+  const fotos = casoFotosNuevas.slice();
+
+  if (editingCasoId) {
+    const c = casos.find(x => String(x.id)===String(editingCasoId));
+    const estadoAnterior = c ? c.estado : null;
+    if (c) Object.assign(c, data);
+    const id = editingCasoId;
+    let log = null;
+    if (c && estadoAnterior && estadoAnterior !== data.estado) {
+      log = 'Estado: ' + estadoCaso(estadoAnterior).label + ' → ' + estadoCaso(data.estado).label;
+      if (!c.historial) c.historial = [];
+      c.historial.push({ ts:new Date().toISOString(), txt:log });
+    }
+    closeCasoModal();
+    renderRecepcion();
+    try {
+      await jsonpRequest(Object.assign({ action:'updateCaso', id:id }, data));
+      if (log) await jsonpRequest({ action:'addHistorialCaso', id:id, texto:log });
+    } catch(e) { console.warn('updateCaso:', e.message); }
+    if (fotos.length) await subirFotos(id, fotos);
+  } else {
+    const nuevo = Object.assign({ id:'local_'+Date.now(), fecha:new Date().toISOString(), historial:[] }, data);
+    casos.push(nuevo);
+    closeCasoModal();
+    renderRecepcion();
+    try {
+      const r = await jsonpRequest(Object.assign({ action:'createCaso', fecha:nuevo.fecha }, data));
+      if (r.ok && r.id) nuevo.id = r.id;
+    } catch(e) { console.warn('createCaso:', e.message); }
+    if (fotos.length) await subirFotos(nuevo.id, fotos);
+  }
+}
+
+async function deleteCaso() {
+  if (!editingCasoId) return;
+  const c = casos.find(x => String(x.id)===String(editingCasoId));
+  if (!c) { closeCasoModal(); return; }
+  if (!confirm('¿Eliminar el caso de ' + c.cliente + '?')) return;
+  const id = editingCasoId;
+  casos = casos.filter(x => String(x.id)!==String(id));
+  closeCasoModal();
+  renderRecepcion();
+  try { await jsonpRequest({ action:'deleteCaso', id:id }); }
+  catch(e) { console.warn('deleteCaso:', e.message); }
+}
+
+async function cambiarEstadoCaso(c, estado, extra) {
+  const anterior = c.estado;
+  Object.assign(c, { estado:estado }, extra || {});
+  const log = 'Estado: ' + estadoCaso(anterior).label + ' → ' + estadoCaso(estado).label;
+  if (!c.historial) c.historial = [];
+  c.historial.push({ ts:new Date().toISOString(), txt:log });
+  renderRecepcion();
+  try {
+    await jsonpRequest(Object.assign({ action:'updateCaso', id:c.id, estado:estado }, extra || {}));
+    await jsonpRequest({ action:'addHistorialCaso', id:c.id, texto:log });
+  } catch(e) { console.warn('cambiarEstadoCaso:', e.message); }
+}
+
+function marcarEnviado(c) {
+  const nro = prompt('N° de presupuesto enviado (opcional):', c.presupuestoNro || '');
+  if (nro === null) return;
+  const monto = prompt('Monto presupuestado (opcional):', c.presupuestoMonto || '');
+  if (monto === null) return;
+  cambiarEstadoCaso(c, 'ENVIADO', {
+    presupuestoNro: nro.trim(),
+    presupuestoMonto: monto.trim(),
+    fechaEnvio: new Date().toISOString()
+  });
+}
+
+function aprobarCaso(c) {
+  cambiarEstadoCaso(c, 'APROBADO', { fechaResolucion: new Date().toISOString() });
+}
+
+function openRechazo(c) {
+  rechazandoId = c.id;
+  document.getElementById('rMotivo').value = 'PRECIO';
+  document.getElementById('rMonto').value = c.presupuestoMonto || '';
+  document.getElementById('rComent').value = '';
+  document.getElementById('rechazoOverlay').classList.add('open');
+  document.querySelector('#rechazoOverlay .modal').scrollTop = 0;
+}
+function closeRechazo() {
+  rechazandoId = null;
+  document.getElementById('rechazoOverlay').classList.remove('open');
+}
+function confirmRechazo() {
+  const c = casos.find(x => String(x.id)===String(rechazandoId));
+  if (!c) { closeRechazo(); return; }
+  const motivo = document.getElementById('rMotivo').value;
+  const monto  = document.getElementById('rMonto').value.trim();
+  const coment = document.getElementById('rComent').value.trim();
+  closeRechazo();
+  cambiarEstadoCaso(c, 'RECHAZADO', {
+    motivoRechazo: motivo,
+    comentarioRechazo: coment,
+    presupuestoMonto: monto,
+    fechaResolucion: new Date().toISOString()
+  });
+}
+
+// Aprobado → crea el trabajo en Taller con los datos del caso
+async function pasarATaller(c) {
+  const division = c.origen==='INTERNO' ? 'INTERNO' : 'CLIENTE';
+  const data = {
+    division:    division,
+    titulo:      (c.cliente || '').toUpperCase(),
+    unidad:      [c.unidad, c.chasis && ('Chasis ' + c.chasis)].filter(Boolean).join(' · ').toUpperCase(),
+    descripcion: c.descripcion || '',
+    estado:      (ESTADOS_TRABAJO[0] || {}).id || 'PENDIENTE',
+    nota:        [c.presupuestoNro && ('Presup. ' + c.presupuestoNro), c.garantia==='SI' && 'GARANTÍA', c.comentarios].filter(Boolean).join(' · '),
+    tecnico:     '',
+  };
+  const local = Object.assign({ id:'local_'+Date.now() }, data);
+  trabajos.push(local);
+  trabajosLoaded = true;
+  try {
+    const r = await jsonpRequest(Object.assign({ action:'createTrabajo' }, data));
+    if (r.ok && r.id) local.id = r.id;
+  } catch(e) { console.warn('createTrabajo desde caso:', e.message); }
+  await cambiarEstadoCaso(c, 'TALLER', { trabajoId: local.id });
+  switchTab('taller');
+  renderTaller();
+}
+
+// Fotos: se achican en el equipo y se suben a la carpeta de Drive
+function achicarImagen(file, max) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * k), h = Math.round(img.height * k);
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve({ nombre:file.name, data: cv.toDataURL('image/jpeg', 0.75) });
+      };
+      img.onerror = () => resolve(null);
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function subirFotos(casoId, fotos) {
+  if (!API_URL || API_URL.startsWith('TU_')) return;
+  showLoading('Subiendo fotos…');
+  try {
+    for (const f of fotos) {
+      await fetch(API_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action:'addFotoCaso', id:casoId, nombre:f.nombre, data:f.data.split(',')[1] })
+      });
+    }
+  } catch(e) { console.warn('subirFotos:', e.message); }
+  hideLoading();
+  setTimeout(function(){ loadCasos(true); }, 2500);
+}
+
+document.getElementById('cFotoInput').addEventListener('change', async function() {
+  const files = Array.from(this.files || []);
+  this.value = '';
+  for (const f of files) {
+    const r = await achicarImagen(f, 1400);
+    if (r) casoFotosNuevas.push(r);
+  }
+  const c = editingCasoId ? casos.find(x => String(x.id)===String(editingCasoId)) : null;
+  renderCasoFotos(c);
+});
+document.getElementById('cEstado').addEventListener('change', function() {
+  const mostrar = ['RELEVADO','ENVIADO','APROBADO','RECHAZADO','TALLER'].indexOf(this.value) >= 0;
+  document.getElementById('cPresupRow').style.display = mostrar ? 'grid' : 'none';
+});
+document.getElementById('casoOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeCasoModal();
+});
+document.getElementById('rechazoOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeRechazo();
+});
+document.getElementById('cHistInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); addCasoNota(); }
+});
+
+const TV_MODE = new URLSearchParams(location.search).get('tv') === '1';
+const TV_ROTATE_MS  = 30000;   // 30s por vista
+const TV_REFRESH_MS = 120000;  // recargar datos cada 2 min
+
+if (TV_MODE) {
+  document.body.classList.add('tv-mode');
+
+  // Reloj
+  const tickClock = () => {
+    const now = new Date();
+    document.getElementById('tvClock').textContent =
+      now.toLocaleDateString('es-AR',{weekday:'short',day:'2-digit',month:'short'}).toUpperCase()
+      + '  ' + now.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  };
+  tickClock();
+  setInterval(tickClock, 15000);
+
+  // Secuencia de vistas
+  const TV_VIEWS = [
+    { id:'semana',    label:'AGENDA SEMANAL'     },
+    { id:'mes',       label:'VISTA MENSUAL'      },
+    { id:'taller',    label:'TRABAJOS DE TALLER' },
+    { id:'analytics', label:'INDICADORES'        },
+  ];
+  let tvIdx = 0;
+
+  async function tvShow(view) {
+    document.getElementById('tvView').textContent = view.label;
+    // siempre anclado a la fecha actual
+    currentMonday = getMonday(new Date());
+    boardMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    analyticsMonday = getMonday(new Date());
+    analyticsMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+    if (view.id === 'analytics') {
+      switchTab('analytics');
+    } else if (view.id === 'taller') {
+      switchTab('taller');
+      loadTrabajos(true);
+    } else {
+      switchTab('tablero');
+      setBoardView(view.id);
+    }
+  }
+
+  async function tvNext() {
+    tvIdx = (tvIdx + 1) % TV_VIEWS.length;
+    tvShow(TV_VIEWS[tvIdx]);
+  }
+
+  // Arrancar en la semana actual y rotar
+  tvShow(TV_VIEWS[0]);
+  setInterval(tvNext, TV_ROTATE_MS);
+
+  // Recarga de datos periódica
+  setInterval(() => {
+    loadedRanges.clear();
+    tasks = [];
+    if (currentTab === 'analytics') renderAnalytics();
+    else render();
+  }, TV_REFRESH_MS);
+}
+
+// ── SERVICE WORKER — registro con auto-actualización ──
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function() {
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+      .then(function(reg) {
+        // Chequear actualizaciones cada 30 min (clave para el tele siempre prendido)
+        setInterval(function() { reg.update().catch(function(){}); }, 30 * 60 * 1000);
+      })
+      .catch(function(){});
+
+    // Cuando se activa un service worker nuevo, recargar UNA vez para tomar la versión fresca
+    var reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function() {
+      if (reloaded) return;
+      reloaded = true;
+      location.reload();
+    });
+  });
+}
+</script>
+</body>
+</html>
