@@ -2957,7 +2957,7 @@ function renderEficiencia() {
   TECNICOS.forEach(x => { acum[x.id] = { pres: 0, real: 0 }; });
   conPresup.forEach(t => {
     const pres = horasPresupTrabajo(t);
-    const citas = citasDeTrabajo(t.id);
+    const citas = citasCumplidas(t.id);
     const total = citas.reduce((a, x) => a + taskHours(x), 0);
     if (!total) return;
     const porTech = {};
@@ -3134,8 +3134,21 @@ function horasPresupTrabajo(t) {
 function citasDeTrabajo(id) {
   return tasks.filter(x => String(x.trabajo || '') === String(id) && x.tipo !== 'DEM' && x.tipo !== 'NO');
 }
+// Sólo cuentan como horas usadas las citas que ya ocurrieron (hasta hoy inclusive):
+// planificar la semana no consume tiempo del presupuesto.
+function citasCumplidas(id) {
+  const hoy = toISO(new Date());
+  return citasDeTrabajo(id).filter(x => x.date <= hoy);
+}
+function citasAgendadas(id) {
+  const hoy = toISO(new Date());
+  return citasDeTrabajo(id).filter(x => x.date > hoy);
+}
 function horasRealTrabajo(id) {
-  return citasDeTrabajo(id).reduce((a, x) => a + taskHours(x), 0);
+  return citasCumplidas(id).reduce((a, x) => a + taskHours(x), 0);
+}
+function horasAgendadasTrabajo(id) {
+  return citasAgendadas(id).reduce((a, x) => a + taskHours(x), 0);
 }
 function fmtHoras(n) {
   return (Math.round(n * 10) / 10).toString().replace('.', ',') + ' h';
@@ -3146,13 +3159,16 @@ function colorEficiencia(pct) {
 function barraHoras(t) {
   const pres = horasPresupTrabajo(t);
   const real = horasRealTrabajo(t.id);
-  if (!pres && !real) return '';
-  if (!pres) return '<div class="hrs-row"><span class="hrs-txt">\u23F1 ' + fmtHoras(real) + ' usadas \u00b7 sin horas presupuestadas</span></div>';
+  const prox = horasAgendadasTrabajo(t.id);
+  if (!pres && !real && !prox) return '';
+  const agenda = prox ? ' \u00b7 +' + fmtHoras(prox) + ' agendadas' : '';
+  if (!pres) return '<div class="hrs-row"><span class="hrs-txt">\u23F1 ' + fmtHoras(real) + ' usadas' + agenda + ' \u00b7 sin horas presupuestadas</span></div>';
   const pct = Math.round(real / pres * 100);
   const col = colorEficiencia(pct);
   return '<div class="hrs-row">' +
     '<div class="hrs-bar"><div class="hrs-fill" style="width:' + Math.min(100, pct) + '%;background:' + col + '"></div></div>' +
     '<span class="hrs-txt" style="color:' + col + '">' + fmtHoras(real) + ' / ' + fmtHoras(pres) + ' \u00b7 ' + pct + '%</span>' +
+    (prox ? '<span class="hrs-txt">+' + fmtHoras(prox) + ' agendadas</span>' : '') +
     '</div>';
 }
 
