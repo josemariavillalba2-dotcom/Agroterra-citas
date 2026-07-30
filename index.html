@@ -2467,7 +2467,17 @@ function renderBody() {
             skip = span - 1;
 
             if (task.tipo === 'NO') {
+              // Se muestra como bloque tramado y clickeable: así se ve el motivo
+              // y se puede editar o borrar para liberar la jornada.
               tdCell.style.background = 'rgba(42,48,72,.2)';
+              const block = document.createElement('div');
+              block.className = 'task-block task-NO';
+              block.innerHTML = `<span class="task-type">NO</span><span class="task-desc">${esc(task.desc || 'No disponible')}</span>`;
+              block.title = 'No disponible — clic para editar o eliminar';
+              block.addEventListener('mouseenter', (e) => showTooltip(e, task));
+              block.addEventListener('mouseleave', hideTooltip);
+              block.addEventListener('click', () => editTask(task));
+              tdCell.appendChild(block);
             } else {
               const block = document.createElement('div');
               block.className = `task-block task-${task.tipo}`;
