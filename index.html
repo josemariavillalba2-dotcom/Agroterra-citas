@@ -386,6 +386,23 @@
     font-size: 11px; color: var(--text-dim);
     font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
+  .legend-key {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 22px; height: 15px; padding: 0 4px;
+    border-radius: 3px;
+    font-size: 9px; font-weight: 800; letter-spacing: .04em;
+  }
+  .legend-toggle {
+    margin-left: auto;
+    cursor: pointer;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .legend-toggle:hover { border-color: var(--accent); color: var(--accent); }
   .legend-dot {
     width: 8px; height: 8px;
     border-radius: 2px;
@@ -483,9 +500,9 @@
     color: var(--text-dim);
   }
   td.td-tech {
-    width: 130px;
-    min-width: 130px;
-    max-width: 130px;
+    width: 152px;
+    min-width: 152px;
+    max-width: 152px;
     text-align: left;
     padding: 0 8px;
     border-right: 1px solid var(--border);
@@ -501,6 +518,28 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* ── FOTO POR TÉCNICO ── */
+  .tech-cell { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .tech-cell .tech-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tech-photo-wrap {
+    position: relative;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface2);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .tech-photo-ph {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    font-size: 9.5px; font-weight: 800; letter-spacing: .02em;
+    color: var(--accent2);
+  }
+  .tech-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .chip.tech-chip { display: inline-flex; align-items: center; gap: 6px; }
+  .chip.tech-chip .tech-photo-ph { color: var(--accent2); }
+  .chip.tech-chip.active .tech-photo-ph { color: #0f1117; }
+
   td.td-cell {
     min-width: 52px;
     border-right: 1px solid rgba(42,48,72,.3);
@@ -543,18 +582,74 @@
     font-size: 10px;
   }
 
-  /* Colores por tipo */
-  .task-V  { background: rgba(62,207,207,.18); color: var(--color-V);  border-left: 2px solid var(--color-V); }
-  .task-S  { background: rgba(76,175,130,.18); color: var(--color-S);  border-left: 2px solid var(--color-S); }
-  .task-R  { background: rgba(245,166,35,.18); color: var(--color-R);  border-left: 2px solid var(--color-R); }
-  .task-G  { background: rgba(167,139,250,.18); color: var(--color-G); border-left: 2px solid var(--color-G); }
-  .task-D  { background: rgba(96,165,250,.18); color: var(--color-D);  border-left: 2px solid var(--color-D); }
-  .task-I  { background: rgba(148,163,184,.12); color: var(--color-I); border-left: 2px solid var(--color-I); }
-  .task-P  { background: rgba(244,114,182,.18); color: var(--color-P); border-left: 2px solid var(--color-P); }
-  .task-C  { background: rgba(251,146,60,.18); color: var(--color-C);  border-left: 2px solid var(--color-C); }
-  .task-NO  { background: transparent; color: var(--text-dim); opacity:.4; font-size:9px; justify-content:center; border-left: none; }
-  .task-DEM { background: rgba(239,68,68,.18); color: var(--color-DEM); border-left: 2px solid var(--color-DEM); }
-  .task-PLM { background: rgba(232,121,249,.18); color: var(--color-PLM); border-left: 2px solid var(--color-PLM); }
+  /* ── Colores por tipo — CAMPO PLENO (pedido de auditoría: leer el tipo de trabajo a distancia) ── */
+  .task-block, .task-span {
+    color: #0f1117;
+    font-weight: 700;
+    border-left: none;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.28);
+  }
+  .task-block .task-type, .task-span .task-type {
+    opacity: 1;
+    font-weight: 800;
+    font-size: 9px;
+    letter-spacing: .04em;
+    background: rgba(0,0,0,.24);
+    color: inherit;
+    padding: 1px 4px;
+    border-radius: 3px;
+    line-height: 1.1;
+  }
+  .task-block .task-desc, .task-span .task-desc { font-weight: 600; }
+
+  .task-V  { background: var(--color-V); }
+  .task-S  { background: var(--color-S); }
+  .task-R  { background: var(--color-R); }
+  .task-G  { background: var(--color-G); }
+  .task-D  { background: var(--color-D); }
+  .task-I  { background: var(--color-I); }
+  .task-P  { background: var(--color-P); }
+  .task-C  { background: var(--color-C); }
+  .task-PLM { background: var(--color-PLM); }
+
+  /* Demora: el estado crítico — rojo pleno, tipografía invertida y halo */
+  .task-DEM {
+    background: var(--color-DEM);
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.4), 0 0 0 2px rgba(239,68,68,.3);
+  }
+  .task-DEM .task-type { background: rgba(255,255,255,.28); }
+
+  /* No disponible: sin color, tramado — se lee como hueco, no como trabajo */
+  .task-NO {
+    background: repeating-linear-gradient(135deg, rgba(107,116,148,.16) 0 5px, rgba(107,116,148,.05) 5px 10px);
+    color: var(--text-dim);
+    font-size: 9px;
+    font-weight: 600;
+    justify-content: center;
+    border-left: none;
+    box-shadow: inset 0 0 0 1px rgba(107,116,148,.35);
+  }
+
+  /* Modo suave: vuelve al bloque tintado anterior (Ajustes › color) */
+  body.color-suave .task-block, body.color-suave .task-span {
+    color: var(--text);
+    box-shadow: none;
+    border-left: 3px solid currentColor;
+    background-blend-mode: normal;
+    filter: none;
+  }
+  body.color-suave .task-V  { background: rgba(62,207,207,.18);  color: var(--color-V); }
+  body.color-suave .task-S  { background: rgba(76,175,130,.18);  color: var(--color-S); }
+  body.color-suave .task-R  { background: rgba(245,166,35,.18);  color: var(--color-R); }
+  body.color-suave .task-G  { background: rgba(167,139,250,.18); color: var(--color-G); }
+  body.color-suave .task-D  { background: rgba(96,165,250,.18);  color: var(--color-D); }
+  body.color-suave .task-I  { background: rgba(148,163,184,.12); color: var(--color-I); }
+  body.color-suave .task-P  { background: rgba(244,114,182,.18); color: var(--color-P); }
+  body.color-suave .task-C  { background: rgba(251,146,60,.18);  color: var(--color-C); }
+  body.color-suave .task-PLM { background: rgba(232,121,249,.18); color: var(--color-PLM); }
+  body.color-suave .task-DEM { background: rgba(239,68,68,.18); color: var(--color-DEM); box-shadow: none; }
+  body.color-suave .task-block .task-type, body.color-suave .task-span .task-type { background: transparent; padding: 0; opacity: .75; font-weight: 600; }
 
   /* Span de múltiples celdas */
   .task-span {
@@ -602,8 +697,8 @@
   @media (max-width: 640px) {
     .fab { display: flex; }
     .btn-add { display: none; }
-    td.td-tech { width: 92px; min-width: 92px; max-width: 92px; font-size: 9px; padding: 0 5px; }
-    .gantt-head th.th-tech { width: 92px; }
+    td.td-tech { width: 118px; min-width: 118px; max-width: 118px; font-size: 9px; padding: 0 5px; }
+    .gantt-head th.th-tech { width: 118px; }
     header { padding: 0 12px; }
     .toolbar { padding: 8px 12px; }
   }
@@ -709,6 +804,19 @@
   .tipo-btn.sel-NO  { background: rgba(42,48,72,.4);   border-color: var(--text-dim); color: var(--text-dim); }
   .tipo-btn.sel-DEM { background: rgba(239,68,68,.2);  border-color: var(--color-DEM); color: var(--color-DEM); }
   .tipo-btn.sel-PLM { background: rgba(232,121,249,.2);border-color: var(--color-PLM); color: var(--color-PLM); }
+
+  /* Tipo seleccionado: campo pleno, igual que el bloque en el pizarrón */
+  .tipo-btn.sel-V  { background: var(--color-V);  color: #0f1117; font-weight: 700; }
+  .tipo-btn.sel-S  { background: var(--color-S);  color: #0f1117; font-weight: 700; }
+  .tipo-btn.sel-R  { background: var(--color-R);  color: #0f1117; font-weight: 700; }
+  .tipo-btn.sel-G  { background: var(--color-G);  color: #0f1117; font-weight: 700; }
+  .tipo-btn.sel-D  { background: var(--color-D);  color: #0f1117; font-weight: 700; }
+  .tipo-btn.sel-I  { background: var(--color-I);  color: #0f1117; font-weight: 700; }
+  .tipo-btn.sel-P  { background: var(--color-P);  color: #0f1117; font-weight: 700; }
+  .tipo-btn.sel-C  { background: var(--color-C);  color: #0f1117; font-weight: 700; }
+  .tipo-btn.sel-PLM { background: var(--color-PLM); color: #0f1117; font-weight: 700; }
+  .tipo-btn.sel-DEM { background: var(--color-DEM); color: #fff; font-weight: 700; }
+  .tipo-btn.sel-NO { background: var(--surface2); border-color: var(--text-dim); color: var(--text); font-weight: 700; }
 
   /* Campo motivo demora */
   .demora-field {
@@ -1438,6 +1546,28 @@ const TIPOS = [
   { id:'PLM', label:'Precisión/PLM',   short:'PLM' },
 ];
 
+// ── FOTOS DE TÉCNICOS ──
+// Guardá la foto con el nombre del técnico dentro de la carpeta fotos/
+// (ej: fotos/Antonio Tissero.jpg). Si no existe, se muestran las iniciales.
+const FOTO_DIR = 'fotos/';
+function fotoSrc(tech) { return FOTO_DIR + encodeURIComponent(tech.name) + '.jpg'; }
+function iniciales(name) {
+  return String(name).replace(/[()]/g,'').trim().split(/\s+/).slice(0,2)
+    .map(w => w.charAt(0)).join('').toUpperCase() || '?';
+}
+// Si no hay .jpg prueba .png; si tampoco, deja las iniciales
+function fotoErr(img) {
+  if (!img.dataset.tried) { img.dataset.tried = '1'; img.src = img.src.replace(/\.jpg$/, '.png'); }
+  else img.remove();
+}
+function techAvatar(tech, size) {
+  const s = size || 28;
+  return `<span class="tech-photo-wrap" style="width:${s}px;height:${s}px">` +
+    `<span class="tech-photo-ph">${iniciales(tech.name)}</span>` +
+    `<img class="tech-photo" src="${fotoSrc(tech)}" alt="" loading="lazy" onerror="fotoErr(this)">` +
+    `</span>`;
+}
+
 // Horas: 08:00 → 19:00, cada 30min (la franja post-jornada permite cargar horas extra)
 const HOURS = [];
 for (let h = 8; h <= 19; h++) {
@@ -1887,7 +2017,7 @@ function renderBody() {
       // Col técnico
       const tdTech = document.createElement('td');
       tdTech.className = 'td-tech';
-      tdTech.textContent = tech.name;
+      tdTech.innerHTML = `<div class="tech-cell">${techAvatar(tech, 28)}<span class="tech-name">${esc(tech.name)}</span></div>`;
       tdTech.title = tech.name;
       row.appendChild(tdTech);
 
@@ -1984,7 +2114,7 @@ function renderTechFilters() {
   TECNICOS.forEach(tech => {
     const chip = document.createElement('div');
     chip.className = 'chip tech-chip ' + (activeTechs.has(tech.id) ? 'active' : '');
-    chip.textContent = tech.name;
+    chip.innerHTML = `${techAvatar(tech, 18)}<span>${esc(tech.name)}</span>`;
     chip.title = tech.name;
     chip.addEventListener('click', () => {
       if (activeTechs.has(tech.id)) {
@@ -2002,12 +2132,29 @@ function renderTechFilters() {
 // ── LEYENDA ──
 function renderLegend() {
   const container = document.getElementById('legend');
+  container.innerHTML = '';
   TIPOS.forEach(tipo => {
     const item = document.createElement('div');
     item.className = 'legend-item';
-    item.innerHTML = `<div class="legend-dot" style="background:var(--color-${tipo.id})"></div>${tipo.id} – ${tipo.label}`;
+    const inv = tipo.id === 'DEM' ? '#fff' : '#0f1117';
+    item.innerHTML = `<span class="legend-key" style="background:var(--color-${tipo.id});color:${inv}">${tipo.id}</span>${tipo.label}`;
     container.appendChild(item);
   });
+
+  const tg = document.createElement('div');
+  tg.className = 'legend-item legend-toggle';
+  tg.id = 'colorToggle';
+  tg.title = 'Intensidad del color de los bloques';
+  tg.addEventListener('click', () => setColorMode(!document.body.classList.contains('color-suave')));
+  container.appendChild(tg);
+  setColorMode(localStorage.getItem('ag_color_suave') === '1');
+}
+
+function setColorMode(suave) {
+  document.body.classList.toggle('color-suave', !!suave);
+  localStorage.setItem('ag_color_suave', suave ? '1' : '0');
+  const el = document.getElementById('colorToggle');
+  if (el) el.textContent = suave ? 'Color: suave' : 'Color: pleno';
 }
 
 // ── MODAL ──
