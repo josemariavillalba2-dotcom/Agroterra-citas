@@ -233,6 +233,13 @@
     font-size: 10.5px; color: var(--text-dim); flex-wrap: wrap;
   }
   .trabajo-nota { color: var(--accent); }
+  .hrs-row { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+  .hrs-bar {
+    flex: 1; height: 6px; background: var(--bg);
+    border-radius: 3px; overflow: hidden; min-width: 60px;
+  }
+  .hrs-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+  .hrs-txt { font-size: 10px; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
   .trabajo-agendar {
     margin-left: auto; background: transparent;
     border: 1px solid var(--accent2); color: var(--accent2);
@@ -1271,11 +1278,17 @@
   }
   .rec-counters { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
   .rec-cols {
-    display: grid; grid-template-columns: repeat(5, minmax(240px, 1fr));
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(248px, 1fr);
     gap: 12px; align-items: start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 8px;
   }
-  @media (max-width: 1200px) { .rec-cols { grid-template-columns: repeat(2, minmax(240px,1fr)); } }
-  @media (max-width: 700px)  { .rec-cols { grid-template-columns: 1fr; } }
+  @media (max-width: 700px) {
+    .rec-cols { grid-auto-flow: row; grid-auto-columns: auto; overflow-x: visible; }
+  }
   .rec-col {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--radius); padding: 10px; min-height: 160px;
@@ -1520,6 +1533,10 @@
         <label>Monto presupuestado</label>
         <input type="text" id="cPresupMonto" placeholder="Ej: 1.850.000">
       </div>
+      <div class="form-row">
+        <label>Horas presupuestadas</label>
+        <input type="text" id="cHorasPresup" placeholder="Ej: 8">
+      </div>
     </div>
 
     <div class="form-row">
@@ -1728,6 +1745,14 @@
       <div class="chart-title">⚠ Estancados — más días sin novedades</div>
       <div class="bar-list" id="estancadosList"></div>
     </div>
+    <div class="chart-card">
+      <div class="chart-title">⏱ Eficiencia por trabajo <span id="efTrabajosLabel"></span></div>
+      <div class="bar-list" id="efTrabajosList"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">⏱ Eficiencia por técnico <span id="efTecnicosLabel"></span></div>
+      <div class="bar-list" id="efTecnicosList"></div>
+    </div>
   </div>
 </div><!-- /analyticsPanel -->
 
@@ -1827,7 +1852,11 @@ const FOTOS_KEY = 'ag_fotos_v1';
 let FOTOS = {};
 try { FOTOS = JSON.parse(localStorage.getItem(FOTOS_KEY) || '{}'); } catch(e) { FOTOS = {}; }
 
-function fotoSrc(tech) { return FOTOS[tech.id] || fotoCandidatos(tech)[0]; }
+const FOTO_OK_KEY = 'ag_foto_ok_v1';
+let FOTO_OK = {};
+try { FOTO_OK = JSON.parse(localStorage.getItem(FOTO_OK_KEY) || '{}'); } catch(e) { FOTO_OK = {}; }
+
+function fotoSrc(tech) { return FOTOS[tech.id] || FOTO_OK[tech.id] || fotoCandidatos(tech)[0]; }
 
 // La foto puede estar con o sin acentos, en .jpg o .png
 function sinAcentos(s) { return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
@@ -1849,6 +1878,17 @@ function fotoErr(img) {
   const i = (parseInt(img.dataset.ci || '0', 10)) + 1;
   if (i < lista.length) { img.dataset.ci = i; img.src = lista[i]; }
   else img.remove();
+}
+
+// Cuando una foto carga bien, se recuerda su ruta para no reintentar las otras
+function fotoOk(img) {
+  const wrap = img.closest('.tech-photo-wrap');
+  const id = wrap && wrap.dataset.tech;
+  if (!id || img.src.indexOf('data:') === 0) return;
+  const ruta = img.getAttribute('src');
+  if (FOTO_OK[id] === ruta) return;
+  FOTO_OK[id] = ruta;
+  try { localStorage.setItem(FOTO_OK_KEY, JSON.stringify(FOTO_OK)); } catch(e) {}
 }
 
 // Cargar una foto desde el dispositivo (queda guardada en este equipo)
@@ -1925,11 +1965,11 @@ function refreshFotos(techId) {
 function techAvatar(tech, size) {
   const s = size || 28;
   const tiene = !!FOTOS[tech.id];
-  const cand = fotoCandidatos(tech).join('|');
+  const cand = (FOTO_OK[tech.id] ? [FOTO_OK[tech.id]] : fotoCandidatos(tech)).join('|');
   return `<span class="tech-photo-wrap" data-tech="${tech.id}" style="width:${s}px;height:${s}px" ` +
     `title="${tiene ? 'Cambiar' : 'Cargar'} foto de ${esc(tech.name)}" onclick="pickFoto(event,'${tech.id}')">` +
     `<span class="tech-photo-ph">${iniciales(tech.name)}</span>` +
-    `<img class="tech-photo" src="${fotoSrc(tech)}" data-cand="${cand}" data-ci="0" alt="" loading="lazy" onerror="fotoErr(this)">` +
+    `<img class="tech-photo" src="${fotoSrc(tech)}" data-cand="${cand}" data-ci="0" alt="" loading="lazy" onerror="fotoErr(this)" onload="fotoOk(this)">` +
     `<span class="tech-photo-edit">+</span>` +
     `</span>`;
 }
@@ -2822,7 +2862,10 @@ async function renderAnalytics() {
   renderHeatmap(pts);
   if (analyticsPeriod==='mes') renderCalendar(pts);
   await loadTrabajosSilent();
-  renderTallerReport();
+  await loadCasosSilent();
+  await loadRangoEficiencia();
+  try { renderTallerReport(); } catch(e) { console.warn('renderTallerReport:', e.message); }
+  try { renderEficiencia(); } catch(e) { console.warn('renderEficiencia:', e.message); }
 }
 
 // ══════════════════════════════════════════
@@ -2854,6 +2897,94 @@ function diasResolucion(t) {
   const a = new Date(t.creadoEn), b = new Date(fin);
   if (isNaN(a) || isNaN(b)) return null;
   return Math.max(0, Math.round((b - a) / 86400000));
+}
+
+// Carga de casos sin tocar la UI de recepción
+async function loadCasosSilent() {
+  if (casosLoaded || !API_URL || API_URL.startsWith('TU_')) return;
+  try {
+    const r = await jsonpRequest({ action: 'getCasos' });
+    if (r.ok) { casos = r.data || []; casosLoaded = true; }
+  } catch(e) {}
+}
+
+// Rango amplio de citas: hace falta para medir las horas usadas por trabajo,
+// que casi nunca caen todas dentro de la semana que se está mirando.
+let rangoEficienciaCargado = false;
+async function loadRangoEficiencia() {
+  if (rangoEficienciaCargado || !API_URL || API_URL.startsWith('TU_')) return;
+  const hoy = new Date();
+  const desde = toISO(addDays(hoy, -150));
+  const hasta = toISO(addDays(hoy, 60));
+  try {
+    const r = await jsonpRequest({ action: 'getCitas', desde: desde, hasta: hasta });
+    if (r.ok) {
+      tasks = tasks.filter(t => t.date < desde || t.date > hasta);
+      tasks.push.apply(tasks, r.data);
+      rangoEficienciaCargado = true;
+    }
+  } catch(e) { console.warn('loadRangoEficiencia:', e.message); }
+}
+
+// Eficiencia por trabajo y por técnico: 100% = se usó exactamente lo presupuestado
+function renderEficiencia() {
+  const elT = document.getElementById('efTrabajosList');
+  const elP = document.getElementById('efTecnicosList');
+  if (!elT || !elP) return;
+  const conPresup = trabajos.filter(t => horasPresupTrabajo(t) > 0);
+
+  const filas = conPresup.map(t => {
+    const pres = horasPresupTrabajo(t);
+    const real = horasRealTrabajo(t.id);
+    return { t: t, pres: pres, real: real, pct: pres ? Math.round(real / pres * 100) : 0 };
+  }).sort((a, b) => b.pct - a.pct);
+
+  const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  setTxt('efTrabajosLabel', filas.length ? '— ' + filas.length + ' con horas presupuestadas' : '');
+  elT.innerHTML = filas.length ? filas.map(f => {
+    const col = colorEficiencia(f.pct);
+    return '<div class="bar-item">' +
+      '<span class="bar-item-label cliente" title="' + esc(f.t.titulo) + '">' + esc(f.t.titulo) + '</span>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + Math.min(100, f.pct) + '%;background:' + col + '"></div></div>' +
+      '<span class="bar-val" style="color:' + col + '">' + f.pct + '%</span>' +
+      '<span class="bar-val" style="width:74px">' + fmtHoras(f.real) + '/' + fmtHoras(f.pres) + '</span>' +
+      '</div>';
+  }).join('') : '<div style="color:var(--text-dim);font-size:12px">Todavía no hay trabajos con horas presupuestadas</div>';
+
+  // Por técnico: a cada uno se le imputa la parte del presupuesto proporcional
+  // a las horas que puso en ese trabajo.
+  const acum = {};
+  TECNICOS.forEach(x => { acum[x.id] = { pres: 0, real: 0 }; });
+  conPresup.forEach(t => {
+    const pres = horasPresupTrabajo(t);
+    const citas = citasDeTrabajo(t.id);
+    const total = citas.reduce((a, x) => a + taskHours(x), 0);
+    if (!total) return;
+    const porTech = {};
+    citas.forEach(x => { porTech[x.tech] = (porTech[x.tech] || 0) + taskHours(x); });
+    Object.keys(porTech).forEach(id => {
+      if (!acum[id]) acum[id] = { pres: 0, real: 0 };
+      acum[id].real += porTech[id];
+      acum[id].pres += pres * (porTech[id] / total);
+    });
+  });
+
+  const tecs = TECNICOS.map(x => {
+    const a = acum[x.id] || { pres: 0, real: 0 };
+    return { name: x.name, pres: a.pres, real: a.real, pct: a.pres ? Math.round(a.real / a.pres * 100) : null };
+  }).filter(x => x.real > 0).sort((a, b) => (a.pct || 0) - (b.pct || 0));
+
+  setTxt('efTecnicosLabel', tecs.length ? '— 100% = a tiempo' : '');
+  elP.innerHTML = tecs.length ? tecs.map(x => {
+    const pct = x.pct === null ? 0 : x.pct;
+    const col = x.pct === null ? 'var(--text-dim)' : colorEficiencia(pct);
+    return '<div class="bar-item">' +
+      '<span class="bar-item-label cliente" title="' + esc(x.name) + '">' + esc(x.name) + '</span>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + Math.min(100, pct) + '%;background:' + col + '"></div></div>' +
+      '<span class="bar-val" style="color:' + col + '">' + (x.pct === null ? '—' : pct + '%') + '</span>' +
+      '<span class="bar-val" style="width:74px">' + fmtHoras(x.real) + '/' + fmtHoras(x.pres) + '</span>' +
+      '</div>';
+  }).join('') : '<div style="color:var(--text-dim);font-size:12px">Sin horas cargadas sobre trabajos presupuestados</div>';
 }
 
 function renderTallerReport() {
@@ -2988,6 +3119,41 @@ function periodLabel() {
   } else {
     return analyticsMonth.toLocaleDateString('es-AR',{month:'long',year:'numeric'}).toUpperCase();
   }
+}
+
+// ── Eficiencia: horas presupuestadas vs. horas realmente usadas ──
+function numHoras(v) {
+  const n = parseFloat(String(v == null ? '' : v).replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+function horasPresupTrabajo(t) {
+  if (t.horasPresup) return numHoras(t.horasPresup);
+  const c = casos.find(x => String(x.trabajoId || '') === String(t.id));
+  return c ? numHoras(c.horasPresup) : 0;
+}
+function citasDeTrabajo(id) {
+  return tasks.filter(x => String(x.trabajo || '') === String(id) && x.tipo !== 'DEM' && x.tipo !== 'NO');
+}
+function horasRealTrabajo(id) {
+  return citasDeTrabajo(id).reduce((a, x) => a + taskHours(x), 0);
+}
+function fmtHoras(n) {
+  return (Math.round(n * 10) / 10).toString().replace('.', ',') + ' h';
+}
+function colorEficiencia(pct) {
+  return pct <= 100 ? '#22c55e' : pct <= 125 ? '#facc15' : '#ef4444';
+}
+function barraHoras(t) {
+  const pres = horasPresupTrabajo(t);
+  const real = horasRealTrabajo(t.id);
+  if (!pres && !real) return '';
+  if (!pres) return '<div class="hrs-row"><span class="hrs-txt">\u23F1 ' + fmtHoras(real) + ' usadas \u00b7 sin horas presupuestadas</span></div>';
+  const pct = Math.round(real / pres * 100);
+  const col = colorEficiencia(pct);
+  return '<div class="hrs-row">' +
+    '<div class="hrs-bar"><div class="hrs-fill" style="width:' + Math.min(100, pct) + '%;background:' + col + '"></div></div>' +
+    '<span class="hrs-txt" style="color:' + col + '">' + fmtHoras(real) + ' / ' + fmtHoras(pres) + ' \u00b7 ' + pct + '%</span>' +
+    '</div>';
 }
 
 function taskHours(t) {
@@ -3256,6 +3422,7 @@ async function loadTrabajos(force) {
   } finally {
     hideLoading();
     renderTaller();
+    Promise.all([loadCasosSilent(), loadRangoEficiencia()]).then(renderTaller);
   }
 }
 
@@ -3332,6 +3499,7 @@ function renderTaller() {
         </div>
         ${t.unidad ? `<div class="trabajo-unidad">🚜 ${esc(t.unidad)}</div>` : ''}
         ${t.descripcion ? `<div class="trabajo-desc">${esc(t.descripcion)}</div>` : ''}
+        ${barraHoras(t)}
         <div class="trabajo-meta">
           ${tecNoms.length ? `<span>👤 ${esc(tecNoms.join(', '))}</span>` : ''}
           ${t.nota ? `<span class="trabajo-nota">📌 ${esc(t.nota)}</span>` : ''}
@@ -3556,6 +3724,7 @@ let verCasosCerrados = false;
 let casoUrgencia = 'URGENTE';
 let casoFotosNuevas = [];
 let rechazandoId = null;
+const pasandoATaller = {};
 
 function estadoCaso(id) { return ESTADOS_CASO.find(e => e.id===id) || ESTADOS_CASO[0]; }
 function urgenciaInfo(id) { return URGENCIAS.find(u => u.id===id) || URGENCIAS[1]; }
@@ -3608,7 +3777,6 @@ function renderRecepcion() {
   const ordenUrg = {};
   URGENCIAS.forEach((u,i) => ordenUrg[u.id] = i);
 
-  cont.style.gridTemplateColumns = `repeat(${visibles.length}, minmax(240px, 1fr))`;
   cont.innerHTML = visibles.map(e => {
     const items = casos.filter(c => c.estado===e.id).sort((a,b) => {
       const ua = ordenUrg[a.urgencia], ub = ordenUrg[b.urgencia];
@@ -3666,6 +3834,7 @@ function casoCardHTML(c) {
   if (c.origen) tags.push(`<span class="caso-tag">${esc(ORIGENES[c.origen] || c.origen)}</span>`);
   if (c.recibidoPor) tags.push(`<span class="caso-tag">${esc(c.recibidoPor)}</span>`);
   if (c.ordenNro) tags.push(`<span class="caso-tag orden">OT ${esc(c.ordenNro)}</span>`);
+  if (c.horasPresup) tags.push(`<span class="caso-tag">⏱ ${esc(c.horasPresup)} h presup.</span>`);
   if (c.presupuestoMonto) tags.push(`<span class="caso-tag plata">$ ${esc(c.presupuestoMonto)}</span>`);
   if (nFotos) tags.push(`<span class="caso-tag">📷 ${nFotos}</span>`);
   if (c.estado==='RECHAZADO' && c.motivoRechazo)
@@ -3731,6 +3900,7 @@ function openCasoModal(c) {
   document.getElementById('cPresupNro').value   = c ? (c.presupuestoNro || '') : '';
   document.getElementById('cPresupMonto').value = c ? (c.presupuestoMonto || '') : '';
   document.getElementById('cOrden').value = c ? (c.ordenNro || '') : '';
+  document.getElementById('cHorasPresup').value = c ? (c.horasPresup || '') : '';
   casoUrgencia = c ? (c.urgencia || 'URGENTE') : 'URGENTE';
   renderUrgPick();
   renderCasoFotos(c);
@@ -3798,6 +3968,7 @@ function datosCasoDesdeForm() {
     presupuestoNro:   document.getElementById('cPresupNro').value.trim(),
     presupuestoMonto: document.getElementById('cPresupMonto').value.trim(),
     ordenNro:         document.getElementById('cOrden').value.trim(),
+    horasPresup:      document.getElementById('cHorasPresup').value.trim(),
   };
 }
 
@@ -3869,9 +4040,12 @@ function marcarEnviado(c) {
   if (nro === null) return;
   const monto = prompt('Monto presupuestado (opcional):', c.presupuestoMonto || '');
   if (monto === null) return;
+  const horas = prompt('Horas de trabajo presupuestadas (ej: 8):', c.horasPresup || '');
+  if (horas === null) return;
   cambiarEstadoCaso(c, 'ENVIADO', {
     presupuestoNro: nro.trim(),
     presupuestoMonto: monto.trim(),
+    horasPresup: horas.trim(),
     fechaEnvio: new Date().toISOString()
   });
 }
@@ -3920,19 +4094,32 @@ async function pasarATaller(c) {
     unidad:      [c.unidad, c.chasis && ('Chasis ' + c.chasis)].filter(Boolean).join(' · ').toUpperCase(),
     descripcion: c.descripcion || '',
     estado:      (ESTADOS_TRABAJO[0] || {}).id || 'PENDIENTE',
-    nota:        ['OT ' + c.ordenNro, c.presupuestoNro && ('Presup. ' + c.presupuestoNro), c.garantia==='SI' && 'GARANTÍA', c.comentarios].filter(Boolean).join(' · '),
+    nota:        ['OT ' + c.ordenNro, c.horasPresup && (c.horasPresup + ' h presup.'), c.presupuestoNro && ('Presup. ' + c.presupuestoNro), c.garantia==='SI' && 'GARANTÍA', c.comentarios].filter(Boolean).join(' · '),
     tecnico:     '',
+    horasPresup: c.horasPresup || '',
   };
+  if (pasandoATaller[c.id]) return;
+  pasandoATaller[c.id] = true;
+
+  // Se mueve la tarjeta y se crea el trabajo en pantalla al instante;
+  // el servidor se sincroniza después (igual que el resto de la app).
   const local = Object.assign({ id:'local_'+Date.now() }, data);
   trabajos.push(local);
   trabajosLoaded = true;
-  try {
-    const r = await jsonpRequest(Object.assign({ action:'createTrabajo' }, data));
-    if (r.ok && r.id) local.id = r.id;
-  } catch(e) { console.warn('createTrabajo desde caso:', e.message); }
-  await cambiarEstadoCaso(c, 'TALLER', { trabajoId: local.id, ordenNro: c.ordenNro });
+  cambiarEstadoCaso(c, 'TALLER', { trabajoId: local.id, ordenNro: c.ordenNro });
   switchTab('taller');
   renderTaller();
+
+  try {
+    const r = await jsonpRequest(Object.assign({ action:'createTrabajo' }, data));
+    if (r.ok && r.id) {
+      local.id = r.id;
+      c.trabajoId = r.id;
+      renderTaller();
+      try { await jsonpRequest({ action:'updateCaso', id:c.id, trabajoId:r.id }); } catch(e) {}
+    }
+  } catch(e) { console.warn('createTrabajo desde caso:', e.message); }
+  delete pasandoATaller[c.id];
 }
 
 // Fotos: se achican en el equipo y se suben a la carpeta de Drive
