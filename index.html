@@ -536,6 +536,19 @@
     color: var(--accent2);
   }
   .tech-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tech-photo-wrap { cursor: pointer; }
+  .tech-photo-wrap:hover { box-shadow: inset 0 0 0 1px var(--accent); }
+  .tech-photo-edit {
+    position: absolute; right: 0; bottom: 0;
+    width: 12px; height: 12px;
+    display: grid; place-items: center;
+    background: var(--accent); color: #0f1117;
+    font-size: 11px; font-weight: 800; line-height: 1;
+    border-radius: 3px 0 0 0;
+    opacity: 0; transition: opacity .12s;
+    pointer-events: none;
+  }
+  .tech-photo-wrap:hover .tech-photo-edit { opacity: 1; }
   .chip.tech-chip { display: inline-flex; align-items: center; gap: 6px; }
   .chip.tech-chip .tech-photo-ph { color: var(--accent2); }
   .chip.tech-chip.active .tech-photo-ph { color: #0f1117; }
@@ -1550,21 +1563,114 @@ const TIPOS = [
 // Guardá la foto con el nombre del técnico dentro de la carpeta fotos/
 // (ej: fotos/Antonio Tissero.jpg). Si no existe, se muestran las iniciales.
 const FOTO_DIR = 'fotos/';
-function fotoSrc(tech) { return FOTO_DIR + encodeURIComponent(tech.name) + '.jpg'; }
+const FOTOS_KEY = 'ag_fotos_v1';
+let FOTOS = {};
+try { FOTOS = JSON.parse(localStorage.getItem(FOTOS_KEY) || '{}'); } catch(e) { FOTOS = {}; }
+
+function fotoSrc(tech) { return FOTOS[tech.id] || fotoCandidatos(tech)[0]; }
+
+// La foto puede estar con o sin acentos, en .jpg o .png
+function sinAcentos(s) { return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function fotoCandidatos(tech) {
+  const n = tech.name, p = sinAcentos(n);
+  const nombres = p === n ? [n] : [n, p];
+  const out = [];
+  nombres.forEach(x => ['.jpg', '.png', '.jpeg', '.JPG'].forEach(e => out.push(FOTO_DIR + encodeURIComponent(x) + e)));
+  return out;
+}
 function iniciales(name) {
   return String(name).replace(/[()]/g,'').trim().split(/\s+/).slice(0,2)
     .map(w => w.charAt(0)).join('').toUpperCase() || '?';
 }
-// Si no hay .jpg prueba .png; si tampoco, deja las iniciales
+// Recorre los nombres posibles; si ninguno existe, quedan las iniciales
 function fotoErr(img) {
-  if (!img.dataset.tried) { img.dataset.tried = '1'; img.src = img.src.replace(/\.jpg$/, '.png'); }
+  if (img.src.indexOf('data:') === 0) { img.remove(); return; }
+  const lista = (img.dataset.cand || '').split('|').filter(Boolean);
+  const i = (parseInt(img.dataset.ci || '0', 10)) + 1;
+  if (i < lista.length) { img.dataset.ci = i; img.src = lista[i]; }
   else img.remove();
 }
+
+// Cargar una foto desde el dispositivo (queda guardada en este equipo)
+function pickFoto(ev, techId) {
+  ev.stopPropagation();
+  ev.preventDefault();
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.addEventListener('change', () => {
+    const file = inp.files && inp.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const S = 200;
+        const c = document.createElement('canvas');
+        c.width = S; c.height = S;
+        const side = Math.min(img.width, img.height);
+        c.getContext('2d').drawImage(img, (img.width-side)/2, (img.height-side)/2, side, side, 0, 0, S, S);
+        FOTOS[techId] = c.toDataURL('image/jpeg', 0.82);
+        try { localStorage.setItem(FOTOS_KEY, JSON.stringify(FOTOS)); }
+        catch(e) { alert('No hay espacio para guardar más fotos en este dispositivo.'); }
+        refreshFotos(techId);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  inp.click();
+}
+
+// Descarga las fotos guardadas en este dispositivo con el nombre que espera la
+// carpeta fotos/ del repositorio, para publicarlas y que las vea todo el equipo.
+function exportarFotos() {
+  const ids = Object.keys(FOTOS);
+  if (!ids.length) { alert('Todavía no cargaste ninguna foto en este dispositivo.\nTocá la foto de un técnico para cargarla.'); return; }
+  ids.forEach((id, i) => {
+    const tech = TECNICOS.find(t => t.id === id);
+    if (!tech) return;
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.href = FOTOS[id];
+      a.download = tech.name + '.jpg';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }, i * 350);
+  });
+  alert('Se descargan ' + ids.length + ' foto(s).\n\nSubílas a la carpeta fotos/ del repositorio (GitHub › Add file › Upload files) para que las vea todo el equipo.');
+}
+
+function borrarFoto(techId) {
+  delete FOTOS[techId];
+  localStorage.setItem(FOTOS_KEY, JSON.stringify(FOTOS));
+  renderTechFilters();
+  renderBody();
+}
+
+function refreshFotos(techId) {
+  document.querySelectorAll(`.tech-photo-wrap[data-tech="${techId}"]`).forEach(w => {
+    const old = w.querySelector('img');
+    if (old) old.remove();
+    const im = document.createElement('img');
+    im.className = 'tech-photo';
+    im.src = FOTOS[techId];
+    im.alt = '';
+    im.onerror = () => fotoErr(im);
+    w.appendChild(im);
+  });
+}
+
 function techAvatar(tech, size) {
   const s = size || 28;
-  return `<span class="tech-photo-wrap" style="width:${s}px;height:${s}px">` +
+  const tiene = !!FOTOS[tech.id];
+  const cand = fotoCandidatos(tech).join('|');
+  return `<span class="tech-photo-wrap" data-tech="${tech.id}" style="width:${s}px;height:${s}px" ` +
+    `title="${tiene ? 'Cambiar' : 'Cargar'} foto de ${esc(tech.name)}" onclick="pickFoto(event,'${tech.id}')">` +
     `<span class="tech-photo-ph">${iniciales(tech.name)}</span>` +
-    `<img class="tech-photo" src="${fotoSrc(tech)}" alt="" loading="lazy" onerror="fotoErr(this)">` +
+    `<img class="tech-photo" src="${fotoSrc(tech)}" data-cand="${cand}" data-ci="0" alt="" loading="lazy" onerror="fotoErr(this)">` +
+    `<span class="tech-photo-edit">+</span>` +
     `</span>`;
 }
 
@@ -2147,6 +2253,14 @@ function renderLegend() {
   tg.title = 'Intensidad del color de los bloques';
   tg.addEventListener('click', () => setColorMode(!document.body.classList.contains('color-suave')));
   container.appendChild(tg);
+
+  const dl = document.createElement('div');
+  dl.className = 'legend-item legend-toggle';
+  dl.textContent = 'Exportar fotos';
+  dl.title = 'Descarga las fotos cargadas en este dispositivo, listas para subir a la carpeta fotos/ del repositorio';
+  dl.addEventListener('click', exportarFotos);
+  container.appendChild(dl);
+
   setColorMode(localStorage.getItem('ag_color_suave') === '1');
 }
 
