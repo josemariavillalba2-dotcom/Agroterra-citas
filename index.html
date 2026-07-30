@@ -1260,6 +1260,7 @@
     font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 10px;
     color: var(--text-dim); margin-left: auto;
   }
+</style>
 <style>
   /* ── RECEPCIÓN DE CASO ── */
   .recepcion-panel { display: none; padding: 16px; max-width: 1500px; margin: 0 auto; }
@@ -1313,6 +1314,7 @@
   }
   .caso-tag.gar { border-color: var(--color-G); color: var(--color-G); }
   .caso-tag.plata { border-color: var(--color-S); color: var(--color-S); }
+  .caso-tag.orden { border-color: var(--accent); color: var(--accent); font-weight: 800; }
   .caso-dias { margin-left: auto; font-size: 9px; color: var(--text-dim); }
   .caso-dias.viejo { color: var(--color-R); font-weight: 700; }
   .caso-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
@@ -1518,6 +1520,11 @@
         <label>Monto presupuestado</label>
         <input type="text" id="cPresupMonto" placeholder="Ej: 1.850.000">
       </div>
+    </div>
+
+    <div class="form-row">
+      <label>N° de orden de trabajo</label>
+      <input type="text" id="cOrden" placeholder="Se pide al pasar a taller">
     </div>
 
     <div class="form-row">
@@ -3658,6 +3665,7 @@ function casoCardHTML(c) {
   if (c.garantia==='SI') tags.push('<span class="caso-tag gar">Garantía</span>');
   if (c.origen) tags.push(`<span class="caso-tag">${esc(ORIGENES[c.origen] || c.origen)}</span>`);
   if (c.recibidoPor) tags.push(`<span class="caso-tag">${esc(c.recibidoPor)}</span>`);
+  if (c.ordenNro) tags.push(`<span class="caso-tag orden">OT ${esc(c.ordenNro)}</span>`);
   if (c.presupuestoMonto) tags.push(`<span class="caso-tag plata">$ ${esc(c.presupuestoMonto)}</span>`);
   if (nFotos) tags.push(`<span class="caso-tag">📷 ${nFotos}</span>`);
   if (c.estado==='RECHAZADO' && c.motivoRechazo)
@@ -3722,6 +3730,7 @@ function openCasoModal(c) {
   document.getElementById('cComent').value   = c ? (c.comentarios || '') : '';
   document.getElementById('cPresupNro').value   = c ? (c.presupuestoNro || '') : '';
   document.getElementById('cPresupMonto').value = c ? (c.presupuestoMonto || '') : '';
+  document.getElementById('cOrden').value = c ? (c.ordenNro || '') : '';
   casoUrgencia = c ? (c.urgencia || 'URGENTE') : 'URGENTE';
   renderUrgPick();
   renderCasoFotos(c);
@@ -3788,6 +3797,7 @@ function datosCasoDesdeForm() {
     estado:           document.getElementById('cEstado').value,
     presupuestoNro:   document.getElementById('cPresupNro').value.trim(),
     presupuestoMonto: document.getElementById('cPresupMonto').value.trim(),
+    ordenNro:         document.getElementById('cOrden').value.trim(),
   };
 }
 
@@ -3899,6 +3909,10 @@ function confirmRechazo() {
 
 // Aprobado → crea el trabajo en Taller con los datos del caso
 async function pasarATaller(c) {
+  const orden = prompt('N° de orden de trabajo (obligatorio para pasar a taller):', c.ordenNro || '');
+  if (orden === null) return;
+  if (!orden.trim()) { alert('Sin N° de orden el caso no puede pasar a taller.'); return; }
+  c.ordenNro = orden.trim();
   const division = c.origen==='INTERNO' ? 'INTERNO' : 'CLIENTE';
   const data = {
     division:    division,
@@ -3906,7 +3920,7 @@ async function pasarATaller(c) {
     unidad:      [c.unidad, c.chasis && ('Chasis ' + c.chasis)].filter(Boolean).join(' · ').toUpperCase(),
     descripcion: c.descripcion || '',
     estado:      (ESTADOS_TRABAJO[0] || {}).id || 'PENDIENTE',
-    nota:        [c.presupuestoNro && ('Presup. ' + c.presupuestoNro), c.garantia==='SI' && 'GARANTÍA', c.comentarios].filter(Boolean).join(' · '),
+    nota:        ['OT ' + c.ordenNro, c.presupuestoNro && ('Presup. ' + c.presupuestoNro), c.garantia==='SI' && 'GARANTÍA', c.comentarios].filter(Boolean).join(' · '),
     tecnico:     '',
   };
   const local = Object.assign({ id:'local_'+Date.now() }, data);
@@ -3916,7 +3930,7 @@ async function pasarATaller(c) {
     const r = await jsonpRequest(Object.assign({ action:'createTrabajo' }, data));
     if (r.ok && r.id) local.id = r.id;
   } catch(e) { console.warn('createTrabajo desde caso:', e.message); }
-  await cambiarEstadoCaso(c, 'TALLER', { trabajoId: local.id });
+  await cambiarEstadoCaso(c, 'TALLER', { trabajoId: local.id, ordenNro: c.ordenNro });
   switchTab('taller');
   renderTaller();
 }
