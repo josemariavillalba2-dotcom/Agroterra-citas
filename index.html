@@ -472,6 +472,18 @@
     min-width: 27px;
     border-right: 1px solid rgba(42,48,72,.35);
     font-size: 9px;
+    position: relative;
+    overflow: visible;
+  }
+  .gantt-head th.th-hour.noon { border-left: 1px solid var(--border); }
+  .hlabel {
+    position: absolute;
+    left: 3px; top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    font-size: 9.5px;
+    color: var(--text-dim);
+    pointer-events: none;
   }
   .gantt-head th.th-hour.noon {
     border-right: 1px solid var(--border);
@@ -579,7 +591,7 @@
     position: relative;
     padding: 3px 2px;
   }
-  td.td-cell.noon { border-right: 1px solid var(--border); }
+  td.td-cell.noon { border-left: 1px solid var(--border); }
 
   /* Bloques de tarea */
   .task-block {
@@ -2493,7 +2505,7 @@ function renderHead() {
   HOURS.forEach((h, i) => {
     const th = document.createElement('th');
     th.className = 'th-hour' + (h.endsWith(':00') && i>0 && !h.startsWith('08') ? ' noon' : '');
-    th.textContent = h.endsWith(':00') ? h : '';
+    if (h.endsWith(':00')) th.innerHTML = '<span class="hlabel">' + h + '</span>';
     row.appendChild(th);
   });
 }
@@ -2536,10 +2548,10 @@ function renderBody() {
     hoursRow.appendChild(thTechH);
     HOURS.forEach((h, i) => {
       const td = document.createElement('td');
-      td.style.cssText = `min-width:27px;border-right:1px solid ${h.endsWith(':00') && i>0 ? 'var(--border)' : 'rgba(42,48,72,.25)'};background:var(--surface);padding:0;`;
-      td.innerHTML = h.endsWith(':00')
-        ? `<span style="font-family:'Inter',sans-serif;font-size:9px;color:var(--text-dim);display:block;text-align:center;padding:3px 0;">${h}</span>`
-        : '';
+      const enPunto = h.endsWith(':00');
+      td.style.cssText = 'min-width:27px;position:relative;overflow:visible;background:var(--surface);padding:0;' +
+        (enPunto && i>0 ? 'border-left:1px solid var(--border);' : 'border-right:1px solid rgba(42,48,72,.25);');
+      td.innerHTML = enPunto ? `<span class="hlabel">${h}</span>` : '';
       hoursRow.appendChild(td);
     });
     tbody.appendChild(hoursRow);
