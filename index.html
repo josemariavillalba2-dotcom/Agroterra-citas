@@ -1328,6 +1328,8 @@
   .caso-tag.gar { border-color: var(--color-G); color: var(--color-G); }
   .caso-tag.plata { border-color: var(--color-S); color: var(--color-S); }
   .caso-tag.orden { border-color: var(--accent); color: var(--accent); font-weight: 800; }
+  .caso-tag.ok { border-color: var(--color-S); color: var(--color-S); font-weight: 700; }
+  .caso-tag.falta { border-color: #facc15; color: #facc15; font-weight: 700; }
   .caso-dias { margin-left: auto; font-size: 9px; color: var(--text-dim); }
   .caso-dias.viejo { color: var(--color-R); font-weight: 700; }
   .caso-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
@@ -1524,6 +1526,12 @@
       <div class="fotos-strip" id="cFotos"></div>
     </div>
 
+    <div class="form-row" id="cComprobRow" style="display:none">
+      <label>Respaldo de la aprobación</label>
+      <div id="cAprobInfo" style="font-size:11.5px;color:var(--accent2);margin-bottom:6px"></div>
+      <div class="fotos-strip" id="cComprob"></div>
+    </div>
+
     <div class="form-grid" id="cPresupRow" style="display:none">
       <div class="form-row">
         <label>N° de presupuesto</label>
@@ -1562,6 +1570,47 @@
       <button id="cBtnDelete" onclick="deleteCaso()" style="display:none;background:transparent;border:1px solid #ef4444;color:#ef4444;border-radius:var(--radius);padding:9px 14px;font-family:'Inter',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-right:auto;">Eliminar</button>
       <button class="btn-cancel" onclick="closeCasoModal()">Cancelar</button>
       <button class="btn-save" onclick="saveCaso()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL APROBACIÓN -->
+<div class="modal-overlay" id="aprobOverlay">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title">Registrar aprobación del cliente</div>
+
+    <div class="form-grid">
+      <div class="form-row">
+        <label>Quién aprobó</label>
+        <input type="text" id="aQuien" placeholder="Nombre de quien dio el OK">
+      </div>
+      <div class="form-row">
+        <label>Por qué medio</label>
+        <select id="aMedio">
+          <option value="WHATSAPP">WhatsApp</option>
+          <option value="CORREO">Correo</option>
+          <option value="TELEFONO">Teléfono</option>
+          <option value="PRESENCIAL">Presencial / firmado</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label>Captura de la aprobación</label>
+      <input type="file" id="aFotoInput" accept="image/*" multiple style="display:none">
+      <button class="caso-btn" style="flex:0 0 auto;min-width:180px" onclick="document.getElementById('aFotoInput').click()">📎 Adjuntar captura</button>
+      <div class="fotos-strip" id="aFotos"></div>
+      <div id="aAviso" style="font-size:10.5px;color:var(--text-dim);margin-top:6px">Queda registrada como respaldo para auditoría.</div>
+    </div>
+
+    <div class="form-row">
+      <label>Comentario</label>
+      <textarea id="aComent" rows="2" placeholder="Ej: aprueba sólo la mano de obra, repuestos los pone él"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAprob()">Cancelar</button>
+      <button class="btn-save" onclick="confirmAprob()">Registrar aprobación</button>
     </div>
   </div>
 </div>
@@ -3761,6 +3810,12 @@ function diasDelCaso(iso) {
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 function fotoIds(c) { return String(c.fotos || '').split(',').map(s=>s.trim()).filter(Boolean); }
+function comprobIds(c) { return String(c.comprobantes || '').split(',').map(s=>s.trim()).filter(Boolean); }
+const MEDIOS_APROB = { WHATSAPP:'WhatsApp', CORREO:'Correo', TELEFONO:'Teléfono', PRESENCIAL:'Presencial / firmado' };
+function thumbLink(id) {
+  return '<a href="https://drive.google.com/file/d/' + id + '/view" target="_blank" rel="noopener"' +
+    ' style="background-image:url(https://drive.google.com/thumbnail?id=' + id + '&sz=w200)" title="Abrir captura"></a>';
+}
 
 async function loadCasos(force) {
   if (casosLoaded && !force) { renderRecepcion(); return; }
@@ -3861,6 +3916,8 @@ function casoCardHTML(c) {
   if (c.recibidoPor) tags.push(`<span class="caso-tag">${esc(c.recibidoPor)}</span>`);
   if (c.ordenNro) tags.push(`<span class="caso-tag orden">OT ${esc(c.ordenNro)}</span>`);
   if (c.horasPresup) tags.push(`<span class="caso-tag">⏱ ${esc(c.horasPresup)} h presup.</span>`);
+  if (comprobIds(c).length) tags.push(`<span class="caso-tag ok">📎 Aprobación ${comprobIds(c).length}</span>`);
+  else if (c.estado==='APROBADO' || c.estado==='TALLER') tags.push('<span class="caso-tag falta">Sin respaldo</span>');
   if (c.presupuestoMonto) tags.push(`<span class="caso-tag plata">$ ${esc(c.presupuestoMonto)}</span>`);
   if (nFotos) tags.push(`<span class="caso-tag">📷 ${nFotos}</span>`);
   if (c.estado==='RECHAZADO' && c.motivoRechazo)
@@ -3893,9 +3950,7 @@ function renderUrgPick() {
 
 function renderCasoFotos(c) {
   const cont = document.getElementById('cFotos');
-  const guardadas = c ? fotoIds(c).map(id =>
-    `<a href="https://drive.google.com/file/d/${id}/view" target="_blank" rel="noopener" style="background-image:url(https://drive.google.com/thumbnail?id=${id}&sz=w200)" title="Abrir foto"></a>`
-  ).join('') : '';
+  const guardadas = c ? fotoIds(c).map(thumbLink).join('') : '';
   const nuevas = casoFotosNuevas.map((f,i) =>
     `<span class="fthumb" style="background-image:url(${f.data})"><span class="x" data-i="${i}">×</span></span>`
   ).join('');
@@ -3930,6 +3985,21 @@ function openCasoModal(c) {
   casoUrgencia = c ? (c.urgencia || 'URGENTE') : 'URGENTE';
   renderUrgPick();
   renderCasoFotos(c);
+
+  const ids = c ? comprobIds(c) : [];
+  const hayAprob = c && (ids.length || c.aprobadoPor || c.medioAprob);
+  document.getElementById('cComprobRow').style.display = hayAprob ? 'block' : 'none';
+  if (hayAprob) {
+    const fa = c.fechaResolucion ? new Date(c.fechaResolucion) : null;
+    document.getElementById('cAprobInfo').textContent = [
+      c.aprobadoPor && ('Aprobó ' + c.aprobadoPor),
+      c.medioAprob && ('vía ' + (MEDIOS_APROB[c.medioAprob] || c.medioAprob)),
+      fa && !isNaN(fa) && fa.toLocaleDateString('es-AR'),
+      c.comentarioAprob
+    ].filter(Boolean).join(' · ');
+    document.getElementById('cComprob').innerHTML = ids.map(thumbLink).join('') ||
+      '<span style="font-size:11px;color:var(--text-dim)">Sin captura adjunta</span>';
+  }
 
   const sel = document.getElementById('cEstado');
   sel.innerHTML = ESTADOS_CASO.map(e => `<option value="${e.id}">${e.label}</option>`).join('');
@@ -4076,8 +4146,62 @@ function marcarEnviado(c) {
   });
 }
 
+let aprobandoId = null;
+let aprobFotos = [];
+
 function aprobarCaso(c) {
-  cambiarEstadoCaso(c, 'APROBADO', { fechaResolucion: new Date().toISOString() });
+  aprobandoId = c.id;
+  aprobFotos = [];
+  document.getElementById('aQuien').value = c.contacto || '';
+  document.getElementById('aMedio').value = c.origen === 'CORREO' ? 'CORREO' : 'WHATSAPP';
+  document.getElementById('aComent').value = '';
+  renderAprobFotos();
+  document.getElementById('aprobOverlay').classList.add('open');
+  document.querySelector('#aprobOverlay .modal').scrollTop = 0;
+}
+function closeAprob() {
+  aprobandoId = null;
+  aprobFotos = [];
+  document.getElementById('aprobOverlay').classList.remove('open');
+}
+function renderAprobFotos() {
+  document.getElementById('aFotos').innerHTML = aprobFotos.map((f,i) =>
+    '<span class="fthumb" style="background-image:url(' + f.data + ')"><span class="x" data-i="' + i + '">×</span></span>'
+  ).join('');
+  document.querySelectorAll('#aFotos .x').forEach(el => {
+    el.addEventListener('click', ev => {
+      ev.stopPropagation();
+      aprobFotos.splice(parseInt(el.dataset.i,10), 1);
+      renderAprobFotos();
+    });
+  });
+  const av = document.getElementById('aAviso');
+  av.textContent = aprobFotos.length
+    ? aprobFotos.length + ' captura(s) listas para adjuntar.'
+    : 'Queda registrada como respaldo para auditoría.';
+}
+async function confirmAprob() {
+  const c = casos.find(x => String(x.id)===String(aprobandoId));
+  if (!c) { closeAprob(); return; }
+  const quien  = document.getElementById('aQuien').value.trim();
+  const medio  = document.getElementById('aMedio').value;
+  const coment = document.getElementById('aComent').value.trim();
+  if (!aprobFotos.length &&
+      !confirm('No adjuntaste ninguna captura de la aprobación.\n\n¿Registrar igual? Sin respaldo no queda constancia para auditoría.')) return;
+  const fotos = aprobFotos.slice();
+  const id = c.id;
+  closeAprob();
+  await cambiarEstadoCaso(c, 'APROBADO', {
+    aprobadoPor: quien,
+    medioAprob: medio,
+    comentarioAprob: coment,
+    fechaResolucion: new Date().toISOString()
+  });
+  if (quien || coment) {
+    const txt = 'Aprobado' + (quien ? ' por ' + quien : '') + ' vía ' + (MEDIOS_APROB[medio] || medio) + (coment ? ' — ' + coment : '');
+    try { await jsonpRequest({ action:'addHistorialCaso', id:id, texto:txt }); } catch(e) {}
+  }
+  if (fotos.length) await subirFotos(id, fotos, 'comprobantes');
 }
 
 function openRechazo(c) {
@@ -4169,7 +4293,7 @@ function achicarImagen(file, max) {
   });
 }
 
-async function subirFotos(casoId, fotos) {
+async function subirFotos(casoId, fotos, campo) {
   if (!API_URL || API_URL.startsWith('TU_')) return;
   showLoading('Subiendo fotos…');
   try {
@@ -4178,7 +4302,7 @@ async function subirFotos(casoId, fotos) {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action:'addFotoCaso', id:casoId, nombre:f.nombre, data:f.data.split(',')[1] })
+        body: JSON.stringify({ action:'addFotoCaso', id:casoId, campo:(campo || 'fotos'), nombre:f.nombre, data:f.data.split(',')[1] })
       });
     }
   } catch(e) { console.warn('subirFotos:', e.message); }
@@ -4195,6 +4319,18 @@ document.getElementById('cFotoInput').addEventListener('change', async function(
   }
   const c = editingCasoId ? casos.find(x => String(x.id)===String(editingCasoId)) : null;
   renderCasoFotos(c);
+});
+document.getElementById('aFotoInput').addEventListener('change', async function() {
+  const files = Array.from(this.files || []);
+  this.value = '';
+  for (const f of files) {
+    const r = await achicarImagen(f, 1600);
+    if (r) aprobFotos.push(r);
+  }
+  renderAprobFotos();
+});
+document.getElementById('aprobOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeAprob();
 });
 document.getElementById('cEstado').addEventListener('change', function() {
   const mostrar = ['RELEVADO','ENVIADO','APROBADO','RECHAZADO','TALLER'].indexOf(this.value) >= 0;
