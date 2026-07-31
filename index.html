@@ -175,6 +175,18 @@
     .mb-pills { max-height: 110px; }
   }
 
+  /* Pausas fijas: almuerzo y descansos */
+  .td-cell.cell-pausa {
+    background: repeating-linear-gradient(45deg,
+      rgba(56,189,248,.13) 0 4px, rgba(56,189,248,.04) 4px 8px);
+    position: relative;
+  }
+  .pausa-mark {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    font-size: 9px; opacity: .5; pointer-events: none;
+  }
+
   /* Franjas fuera de jornada */
   .td-cell.cell-off {
     background: repeating-linear-gradient(45deg,
@@ -2055,9 +2067,45 @@ function jornadaSlots(dateIso, techId) {
   return ['08:00','17:00'];                                          // lun–jue
 }
 
-function scheduledHours(techId, dateIso) {
+// ── PAUSAS FIJAS ──
+// No son productivas: se descuentan de la capacidad del día y se marcan en el pizarrón.
+// Para cambiar los horarios, editá esta lista.
+const PAUSAS = [
+  { ini:'10:30', fin:'10:45', horas:0.25, label:'Pausa mañana (15 min)', dias:'semana' },
+  { ini:'13:00', fin:'13:30', horas:0.5,  label:'Almuerzo (30 min)',     dias:'semana' },
+  { ini:'15:30', fin:'15:45', horas:0.25, label:'Pausa tarde (15 min)',  dias:'semana' },
+  { ini:'10:00', fin:'10:15', horas:0.25, label:'Pausa sábado (15 min)', dias:'sabado' },
+];
+
+// Pausas que le corresponden a un técnico ese día (según su jornada)
+function pausasDeDia(dateIso, techId) {
+  const j = jornadaSlots(dateIso, techId);
+  if (!j) return [];
+  const esSab = new Date(dateIso + 'T00:00:00').getDay() === 6;
+  const ini = slotIndex(j[0]), fin = slotIndex(j[1]);
+  return PAUSAS.filter(p => {
+    if (p.dias === (esSab ? 'semana' : 'sabado')) return false;
+    const s = slotIndex(p.ini);
+    return s >= ini && s < fin;
+  });
+}
+function horasPausas(dateIso, techId) {
+  return pausasDeDia(dateIso, techId).reduce((a, p) => a + p.horas, 0);
+}
+// Slots del pizarrón tocados por una pausa (para pintarlos)
+function pausaEnSlot(dateIso, techId, slot) {
+  return pausasDeDia(dateIso, techId).find(p => slotIndex(p.ini) === slot) || null;
+}
+
+// Horas de jornada SIN descontar pausas
+function jornadaHorasBrutas(techId, dateIso) {
   const j = jornadaSlots(dateIso, techId);
   return j ? (slotIndex(j[1]) - slotIndex(j[0])) * 0.5 : 0;
+}
+// Capacidad productiva real = jornada − pausas fijas
+function scheduledHours(techId, dateIso) {
+  const bruta = jornadaHorasBrutas(techId, dateIso);
+  return bruta ? Math.max(0, bruta - horasPausas(dateIso, techId)) : 0;
 }
 
 // Horas de una cita que caen FUERA de la jornada (= horas extra)
@@ -2544,6 +2592,15 @@ function renderBody() {
         } else {
           // celda vacía clickeable (sombreada si está fuera de la jornada)
           if (!jor || i < jos || i >= joe) tdCell.classList.add('cell-off');
+          const pau = jor ? pausaEnSlot(iso, tech.id, i) : null;
+          if (pau) {
+            tdCell.classList.add('cell-pausa');
+            tdCell.title = pau.label + ' · ' + pau.ini + '–' + pau.fin;
+            const marca = document.createElement('span');
+            marca.className = 'pausa-mark';
+            marca.textContent = pau.horas === 0.5 ? '🍴' : '☕';
+            tdCell.appendChild(marca);
+          }
           const empty = document.createElement('div');
           empty.className = 'cell-empty';
           empty.addEventListener('click', () => {
@@ -2612,6 +2669,13 @@ function renderLegend() {
   tg.title = 'Intensidad del color de los bloques';
   tg.addEventListener('click', () => setColorMode(!document.body.classList.contains('color-suave')));
   container.appendChild(tg);
+
+  const pa = document.createElement('div');
+  pa.className = 'legend-item';
+  pa.style.color = 'var(--color-G)';
+  pa.title = PAUSAS.map(p => p.label + ': ' + p.ini + '–' + p.fin).join('\n');
+  pa.textContent = '☕ Pausas: 10:30 · 13:00 almuerzo · 15:30 (sáb. 10:00)';
+  container.appendChild(pa);
 
   const dl = document.createElement('div');
   dl.className = 'legend-item legend-toggle';
@@ -2793,6 +2857,16 @@ async function saveTask() {
   if (clash) {
     const _tn = TECNICOS.find(t=>t.id===tech); const techName = (_tn&&_tn.name) || tech;
     if (!confirm(`⚠ SOLAPAMIENTO\n\n${techName} ya tiene "${clash.cliente}${clash.desc?' · '+clash.desc:''}" de ${clash.start} a ${clash.end} ese día.\n\n¿Guardar igual la cita superpuesta?`)) return;
+  }
+
+  // ── Aviso de pausa fija pisada ──
+  if (selectedTipo !== 'NO' && selectedTipo !== 'DEM') {
+    const pisa = pausasDeDia(date, tech).filter(p =>
+      slotIndex(p.ini) >= si && slotIndex(p.ini) < ei);
+    if (pisa.length) {
+      const det = pisa.map(p => '· ' + p.label + ' (' + p.ini + '–' + p.fin + ')').join('\n');
+      if (!confirm('☕ Esta cita se superpone con:\n\n' + det + '\n\nEsas horas no son productivas.\n\n¿Guardar igual?')) return;
+    }
   }
 
   // ── Aviso de horas extra (fuera de jornada) ──
@@ -3266,8 +3340,8 @@ function renderKPIs(pts) {
 
   const kpis = [
     { label:'Citas totales',    value: totalCitas,            sub:'en el período',            cls:'kpi-info' },
-    { label:'Horas asignadas',  value: totalHoras.toFixed(1), sub:`de ${horasDisp.toFixed(1)}h de jornada`, cls:'kpi-ok' },
-    { label:'Eficiencia',       value: eficiencia+'%',        sub:'ocupación s/ jornada',     cls: eficiencia>70?'kpi-ok':'kpi-warn' },
+    { label:'Horas asignadas',  value: totalHoras.toFixed(1), sub:`de ${horasDisp.toFixed(1)}h productivas`, cls:'kpi-ok' },
+    { label:'Eficiencia',       value: eficiencia+'%',        sub:'s/ jornada neta de pausas',     cls: eficiencia>70?'kpi-ok':'kpi-warn' },
     { label:'Horas extra',      value: horasExtra.toFixed(1), sub:'fuera de jornada',         cls: horasExtra>0?'kpi-warn':'kpi-neu' },
     { label:'Demoras',          value: totalDemoras,          sub:'registradas',              cls: totalDemoras>0?'kpi-warn':'kpi-ok' },
     { label:'Clientes únicos',  value: new Set(work.map(t=>t.cliente)).size, sub:'atendidos', cls:'kpi-neu'  },
