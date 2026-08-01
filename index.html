@@ -194,6 +194,58 @@
       rgba(42,48,72,.45) 4px, rgba(42,48,72,.45) 8px);
   }
 
+  /* ── PANEL DE CRITERIO (disparadores del día) ── */
+  .criterio {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 11px 13px;
+    margin: 0 0 12px;
+  }
+  .criterio-head {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 9px;
+  }
+  .criterio-title {
+    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 10.5px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .criterio-toggle {
+    margin-left: auto; font-size: 10.5px; font-weight: 700;
+    color: var(--accent2); cursor: pointer;
+  }
+  .criterio-toggle:hover { color: var(--accent); }
+  .criterio-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 9px;
+  }
+  .crit {
+    display: flex; align-items: flex-start; gap: 9px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--text-dim);
+    border-radius: var(--radius-sm);
+    padding: 9px 11px;
+  }
+  .crit-body { flex: 1; min-width: 0; }
+  .crit-t {
+    font-size: 12px; font-weight: 800; color: var(--text);
+    line-height: 1.25; margin-bottom: 2px;
+  }
+  .crit-d { font-size: 11px; color: var(--text-dim); line-height: 1.35; }
+  .crit-go {
+    flex: 0 0 auto; align-self: center;
+    background: transparent; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text);
+    font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 700;
+    padding: 5px 9px; cursor: pointer; white-space: nowrap;
+  }
+  .crit-go:hover { border-color: var(--accent); color: var(--accent); }
+  .criterio-ok { font-size: 11.5px; color: var(--text-dim); }
+  body.tv-mode .criterio-toggle { display: none; }
+
   /* ── PANEL TALLER ── */
   .taller-panel { display: none; padding: 16px; max-width: 1400px; margin: 0 auto; }
   .taller-panel.visible { display: block; }
@@ -1435,6 +1487,15 @@
 </div>
 
 <div class="tablero-panel" id="tableroPanel">
+<!-- PANEL DE CRITERIO -->
+<div class="criterio" id="criterioPanel" style="display:none">
+  <div class="criterio-head">
+    <span class="criterio-title" id="criterioTitle">Requiere decisión hoy</span>
+    <span class="criterio-toggle" id="criterioToggle" onclick="toggleCriterio()">ocultar</span>
+  </div>
+  <div class="criterio-list" id="criterioList"></div>
+</div>
+
 <!-- FILTROS -->
 <div class="toolbar">
   <span class="filter-label">Técnico:</span>
@@ -2417,12 +2478,18 @@ async function render() {
     renderHead();
     renderBody();
   }
+  // El criterio necesita casos y trabajos: se cargan en segundo plano
+  // para no demorar el pizarrón.
+  try { renderCriterio(); } catch(e) { console.warn('criterio:', e.message); }
+  Promise.all([loadCasosSilent(), loadTrabajosSilent()])
+    .then(() => { try { renderCriterio(); } catch(e) {} });
 }
 
 // Repintar la vista activa (tras crear/editar/eliminar/filtrar)
 function repaint() {
   if (boardView === 'mes') renderMonthBoard();
   else renderBody();
+  try { renderCriterio(); } catch(e) {}
 }
 
 function setBoardView(v) {
@@ -3256,6 +3323,7 @@ function switchTab(tab) {
   if (tab==='analytics') renderAnalytics();
   if (tab==='taller') loadTrabajos();
   if (tab==='recepcion') loadCasos();
+  if (tab==='tablero') { try { renderCriterio(); } catch(e) {} }
 }
 
 function setPeriod(p) {
@@ -3567,6 +3635,169 @@ function renderCalendar(pts) {
   document.getElementById('calGrid').innerHTML = html;
 }
 
+
+// ══════════════════════════════════════════
+// ── PANEL DE CRITERIO ──
+// Reglas sobre los datos que ya existen: cada disparador dice de dónde salió
+// y lleva al lugar donde se resuelve. Sin esto, la información está pero
+// nadie la sale a buscar.
+// ══════════════════════════════════════════
+const CRIT_UMBRALES = {
+  diasSinPresupuestar: 3,   // caso relevado que sigue sin presupuesto
+  diasSinRespuesta:    7,   // presupuesto enviado sin novedades
+  pctHoras:            110, // orden pasada de las horas presupuestadas
+  diasEstancado:       7,   // trabajo activo sin movimiento
+};
+let criterioOculto = localStorage.getItem('ag_criterio_off') === '1';
+
+function toggleCriterio() {
+  criterioOculto = !criterioOculto;
+  localStorage.setItem('ag_criterio_off', criterioOculto ? '1' : '0');
+  renderCriterio();
+}
+
+function irACaso(id) {
+  const c = casos.find(x => String(x.id) === String(id));
+  if (!c) return;
+  switchTab('recepcion');
+  setTimeout(() => openCasoModal(c), 60);
+}
+function irATrabajo(id) {
+  const t = trabajos.find(x => String(x.id) === String(id));
+  if (!t) return;
+  switchTab('taller');
+  setTimeout(() => openTrabajoModal(t), 60);
+}
+
+// Devuelve la lista de disparadores, ordenados por gravedad
+function calcularCriterio() {
+  const out = [];
+  const hoy = toISO(new Date());
+  const push = (sev, titulo, detalle, accion) =>
+    out.push({ sev: sev, titulo: titulo, detalle: detalle, accion: accion });
+
+  // 1. Máquina parada sin nada agendado — lo más urgente que existe
+  casos.filter(c => c.urgencia === 'PARADA' && c.estado !== 'RECHAZADO').forEach(c => {
+    const conCita = c.trabajoId && citasDeTrabajo(c.trabajoId).some(x => x.date >= hoy);
+    if (!conCita) {
+      push(3, 'Máquina parada sin atención agendada',
+        (c.cliente || '') + (c.unidad ? ' · ' + c.unidad : '') + ' — hace ' + diasDelCaso(c.fecha) + ' día(s)',
+        { txt: 'Ver caso', fn: 'irACaso', id: c.id });
+    }
+  });
+
+  // 2. Casos frenados antes del presupuesto
+  casos.filter(c => c.estado === 'PENDIENTE' || c.estado === 'RELEVADO').forEach(c => {
+    const d = diasDelCaso(c.fecha);
+    if (d >= CRIT_UMBRALES.diasSinPresupuestar) {
+      push(c.urgencia === 'PARADA' || c.urgencia === 'URGENTE' ? 2 : 1,
+        'Caso sin presupuestar hace ' + d + ' días',
+        (c.cliente || '') + ' — ' + (estadoCaso(c.estado).label),
+        { txt: 'Ver caso', fn: 'irACaso', id: c.id });
+    }
+  });
+
+  // 3. Presupuestos enviados sin respuesta: seguimiento comercial
+  casos.filter(c => c.estado === 'ENVIADO').forEach(c => {
+    const d = diasDelCaso(c.fechaEnvio || c.fecha);
+    if (d >= CRIT_UMBRALES.diasSinRespuesta) {
+      push(2, 'Presupuesto sin respuesta hace ' + d + ' días',
+        (c.cliente || '') + (c.presupuestoNro ? ' · ' + c.presupuestoNro : '') + ' — conviene llamar',
+        { txt: 'Ver caso', fn: 'irACaso', id: c.id });
+    }
+  });
+
+  // 4. Aprobados que todavía no entraron a taller
+  casos.filter(c => c.estado === 'APROBADO').forEach(c => {
+    push(2, 'Aprobado sin pasar a taller',
+      (c.cliente || '') + ' — falta el N° de orden',
+      { txt: 'Ver caso', fn: 'irACaso', id: c.id });
+  });
+
+  // 5. Auditoría: aprobado o en taller sin respaldo adjunto
+  casos.filter(c => (c.estado === 'APROBADO' || c.estado === 'TALLER') && !comprobIds(c).length).forEach(c => {
+    push(1, 'Aprobación sin respaldo',
+      (c.cliente || '') + ' — no hay captura de la conformidad del cliente',
+      { txt: 'Adjuntar', fn: 'irACaso', id: c.id });
+  });
+
+  // 6. Órdenes pasadas de horas
+  trabajos.filter(t => t.estado !== 'TERMINADO' && t.estado !== 'ENTREGADO').forEach(t => {
+    const pres = horasPresupTrabajo(t);
+    if (!pres) return;
+    const real = horasRealTrabajo(t.id);
+    const pct = Math.round(real / pres * 100);
+    if (pct >= CRIT_UMBRALES.pctHoras) {
+      push(pct >= 150 ? 3 : 2, 'Orden pasada de horas — ' + pct + '%',
+        (t.titulo || '') + ' — ' + fmtHoras(real) + ' de ' + fmtHoras(pres) + ' presupuestadas',
+        { txt: 'Ver trabajo', fn: 'irATrabajo', id: t.id });
+    }
+  });
+
+  // 7. Trabajos activos sin movimiento
+  trabajos.filter(t => t.estado !== 'TERMINADO' && t.estado !== 'ENTREGADO').forEach(t => {
+    const d = diasDesde(ultimaActividad(t));
+    if (d !== null && d >= CRIT_UMBRALES.diasEstancado) {
+      push(1, 'Sin novedades hace ' + d + ' días',
+        (t.titulo || '') + ' — ' + estadoInfo(t.estado).label,
+        { txt: 'Ver trabajo', fn: 'irATrabajo', id: t.id });
+    }
+  });
+
+  // 8. Desbalance de carga en la semana en pantalla
+  const semana = [];
+  for (let i = 0; i < 6; i++) semana.push(toISO(addDays(currentMonday, i)));
+  const carga = TECNICOS.map(tc => {
+    let cap = 0, usado = 0;
+    semana.forEach(d => {
+      cap += scheduledHours(tc.id, d);
+      usado += tasks.filter(x => x.tech === tc.id && x.date === d && x.tipo !== 'NO')
+                    .reduce((a, x) => a + taskHours(x), 0);
+    });
+    return { name: tc.name, pct: cap ? Math.round(usado / cap * 100) : 0, cap: cap };
+  }).filter(x => x.cap > 0);
+  const libres = carga.filter(x => x.pct < 50);
+  const cargados = carga.filter(x => x.pct > 100);
+  if (libres.length && cargados.length) {
+    push(1, 'Carga desbalanceada esta semana',
+      cargados.map(x => x.name.split(' ')[0] + ' ' + x.pct + '%').join(', ') +
+      ' vs ' + libres.map(x => x.name.split(' ')[0] + ' ' + x.pct + '%').join(', '),
+      null);
+  }
+
+  return out.sort((a, b) => b.sev - a.sev);
+}
+
+function renderCriterio() {
+  const panel = document.getElementById('criterioPanel');
+  if (!panel) return;
+  const lista = document.getElementById('criterioList');
+  const items = calcularCriterio();
+
+  document.getElementById('criterioTitle').textContent =
+    items.length ? 'Requiere decisión hoy · ' + items.length : 'Requiere decisión hoy';
+  document.getElementById('criterioToggle').textContent = criterioOculto ? 'mostrar' : 'ocultar';
+
+  if (!items.length) {
+    panel.style.display = 'block';
+    lista.innerHTML = '<div class="criterio-ok">Sin alertas: nada frenado, ninguna orden pasada de horas.</div>';
+    lista.style.display = criterioOculto ? 'none' : 'grid';
+    return;
+  }
+
+  panel.style.display = 'block';
+  lista.style.display = criterioOculto ? 'none' : 'grid';
+  const COL = { 3: '#ef4444', 2: '#fb923c', 1: '#facc15' };
+  lista.innerHTML = items.slice(0, criterioOculto ? 0 : 12).map(x => {
+    const btn = x.accion
+      ? '<button class="crit-go" onclick="' + x.accion.fn + "('" + x.accion.id + "')\">" + x.accion.txt + '</button>'
+      : '';
+    return '<div class="crit" style="border-left-color:' + COL[x.sev] + '">' +
+      '<div class="crit-body"><div class="crit-t">' + esc(x.titulo) + '</div>' +
+      '<div class="crit-d">' + esc(x.detalle) + '</div></div>' + btn + '</div>';
+  }).join('');
+}
+
 // ══════════════════════════════════════════
 // ── TALLER: trabajos pendientes (el pizarrón) ──
 // ══════════════════════════════════════════
@@ -3655,6 +3886,7 @@ function estadoInfo(id) {
 }
 
 function renderTaller() {
+  try { renderCriterio(); } catch(e) {}
   // Contadores por estado
   const counters = document.getElementById('tallerCounters');
   counters.innerHTML = ESTADOS_TRABAJO.map(e => {
@@ -4207,6 +4439,7 @@ async function saveCaso() {
     }
     closeCasoModal();
     renderRecepcion();
+    try { renderCriterio(); } catch(e) {}
     try {
       await jsonpRequest(Object.assign({ action:'updateCaso', id:id }, data));
       if (log) await jsonpRequest({ action:'addHistorialCaso', id:id, texto:log });
@@ -4217,6 +4450,7 @@ async function saveCaso() {
     casos.push(nuevo);
     closeCasoModal();
     renderRecepcion();
+    try { renderCriterio(); } catch(e) {}
     try {
       const r = await jsonpRequest(Object.assign({ action:'createCaso', fecha:nuevo.fecha }, data));
       if (r.ok && r.id) nuevo.id = r.id;
@@ -4245,6 +4479,7 @@ async function cambiarEstadoCaso(c, estado, extra) {
   if (!c.historial) c.historial = [];
   c.historial.push({ ts:new Date().toISOString(), txt:log });
   renderRecepcion();
+  try { renderCriterio(); } catch(e) {}
   try {
     await jsonpRequest(Object.assign({ action:'updateCaso', id:c.id, estado:estado }, extra || {}));
     await jsonpRequest({ action:'addHistorialCaso', id:c.id, texto:log });
