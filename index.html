@@ -1145,6 +1145,43 @@
     padding: 16px;
   }
   .chart-card.full { grid-column: 1 / -1; }
+  .dispo-head { display: flex; margin-bottom: 9px; }
+  .dispo-toggle {
+    font-size: 11px; font-weight: 700; color: var(--accent2);
+    cursor: pointer; padding: 3px 10px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
+  .dispo-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .dispo-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  .dispo-table th {
+    text-align: right; padding: 6px 8px;
+    font-size: 9.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--text-dim); border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .dispo-table th:first-child, .dispo-table td:first-child { text-align: left; }
+  .dispo-table td {
+    padding: 7px 8px; text-align: right;
+    border-bottom: 1px solid rgba(42,48,72,.4); color: var(--text-dim); white-space: nowrap;
+  }
+  .dispo-name { color: var(--text); font-weight: 700; }
+  .dispo-libre { font-weight: 800; font-size: 12.5px; }
+  .dispo-bar {
+    display: inline-block; vertical-align: middle;
+    width: 70px; height: 6px; background: var(--bg);
+    border-radius: 3px; overflow: hidden; margin-right: 7px;
+  }
+  .dispo-fill { height: 100%; border-radius: 3px; }
+  .dispo-pct { font-size: 10.5px; font-weight: 700; }
+  .dispo-total td {
+    border-top: 1px solid var(--border); border-bottom: none;
+    font-weight: 800; color: var(--text); padding-top: 9px;
+  }
+  .dispo-nota { margin-top: 10px; font-size: 10.5px; color: var(--text-dim); line-height: 1.5; }
+  @media (max-width: 700px) {
+    .dispo-table { font-size: 10.5px; }
+    .dispo-table th, .dispo-table td { padding: 5px 4px; }
+    .dispo-bar { width: 40px; }
+  }
   .chart-title {
     font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
     font-weight: 700; font-size: 12px;
@@ -1329,6 +1366,11 @@
   .day-group-header.hoy td { border-top: 2px solid var(--accent); }
   .day-info {
     display: flex; align-items: baseline; gap: 8px;
+  }
+  .day-badge-feriado {
+    background: var(--color-G); color: #0f1117;
+    font-size: 9px; font-weight: 800; letter-spacing: .05em;
+    padding: 2px 7px; border-radius: 3px; text-transform: uppercase;
   }
   .day-name-big {
     font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -1880,6 +1922,10 @@
       <div class="chart-title">⚠ Estancados — más días sin novedades</div>
       <div class="bar-list" id="estancadosList"></div>
     </div>
+    <div class="chart-card full">
+      <div class="chart-title">💰 Horas disponibles para vender <span id="dispoLabel"></span></div>
+      <div id="dispoWrap"></div>
+    </div>
     <div class="chart-card">
       <div class="chart-title">⏱ Eficiencia por trabajo <span id="efTrabajosLabel"></span></div>
       <div class="bar-list" id="efTrabajosList"></div>
@@ -2137,8 +2183,32 @@ function sabadoTechs(dateIso) {
   return ((weeks % 2) + 2) % 2 === 0 ? SABADO_GRUPO_A : SABADO_GRUPO_B;
 }
 
+// ── FERIADOS ──
+// Días sin actividad: no suman capacidad ni horas vendibles.
+// Para el año que viene, agregá las fechas acá.
+const FERIADOS = {
+  '2026-01-01':'Año Nuevo',
+  '2026-02-16':'Carnaval',
+  '2026-02-17':'Carnaval',
+  '2026-03-24':'Memoria por la Verdad y la Justicia',
+  '2026-04-02':'Malvinas',
+  '2026-04-03':'Viernes Santo',
+  '2026-05-01':'Día del Trabajador',
+  '2026-05-25':'Revolución de Mayo',
+  '2026-06-15':'Paso a la Inmortalidad de Güemes',
+  '2026-06-20':'Belgrano',
+  '2026-07-09':'Independencia',
+  '2026-08-17':'Paso a la Inmortalidad de San Martín',
+  '2026-10-12':'Diversidad Cultural',
+  '2026-11-23':'Soberanía Nacional',
+  '2026-12-08':'Inmaculada Concepción',
+  '2026-12-25':'Navidad',
+};
+function esFeriado(dateIso) { return FERIADOS[dateIso] || null; }
+
 // Jornada [inicio, fin] de un técnico en una fecha, o null si no trabaja
 function jornadaSlots(dateIso, techId) {
+  if (FERIADOS[dateIso]) return null;                                // feriado
   const dow = new Date(dateIso + 'T00:00:00').getDay();
   if (dow === 0) return null;                                        // domingo
   if (dow === 6) return sabadoTechs(dateIso).includes(techId) ? ['08:00','12:00'] : null;
@@ -2250,6 +2320,8 @@ function jsonpRequest(params) {
       delete window[cbName];
       const tag = document.getElementById(cbName + '_script');
       if (tag) tag.remove();
+      API_OK++;
+      limpiarAvisoApi();
       resolve(data);
     };
 
@@ -2261,26 +2333,52 @@ function jsonpRequest(params) {
       clearTimeout(timeout);
       delete window[cbName];
       script.remove();
+      API_FAIL++;
       reject(new Error('Script load error'));
     };
     document.head.appendChild(script);
   });
 }
 
-// Aviso visible cuando la planilla no responde: sin esto el tablero
-// queda vacío y parece que se borraron los datos.
+// Aviso de conexión. Sólo aparece si NINGUNA consulta funcionó en esta sesión:
+// una consulta suelta que falla no significa que la planilla esté caída, y un
+// cartel rojo por gusto asusta más de lo que ayuda.
+let API_OK = 0;
+let API_FAIL = 0;
+
+// ── RESPALDO LOCAL ──
+// Cada vez que la planilla responde, se guarda una copia en el equipo.
+// Si en el próximo arranque no hay conexión, se muestra esa copia:
+// nunca se ve un tablero vacío y no se pierde de vista lo que había.
+const BK = { casos:'ag_bk_casos', trabajos:'ag_bk_trabajos', citas:'ag_bk_citas' };
+
+function guardarRespaldo(clave, datos) {
+  try { localStorage.setItem(BK[clave], JSON.stringify({ ts:Date.now(), d:datos })); }
+  catch(e) { /* sin espacio: el respaldo es opcional */ }
+}
+function leerRespaldo(clave) {
+  try {
+    const r = JSON.parse(localStorage.getItem(BK[clave]) || 'null');
+    return r && r.d ? r.d : null;
+  } catch(e) { return null; }
+}
+
 function avisarApiCaida(e) {
   console.warn('API no disponible:', e && e.message);
+  if (API_OK > 0) return;              // hay datos llegando: no es una caída
+  if (API_FAIL < 2) return;            // un fallo aislado no alcanza
   let el = document.getElementById('apiBanner');
   if (!el) {
     el = document.createElement('div');
     el.id = 'apiBanner';
-    el.style.cssText = 'background:#ef4444;color:#fff;font-size:12.5px;font-weight:700;' +
+    el.style.cssText = 'background:#facc15;color:#0f1117;font-size:12.5px;font-weight:700;' +
       'padding:9px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
-    el.innerHTML = '<span>\u26A0 No se pudo conectar con la planilla: los datos guardados no se están mostrando. ' +
-      'Revisá que el Apps Script siga publicado y sin errores.</span>' +
-      '<button onclick="location.reload()" style="background:#fff;color:#ef4444;border:none;' +
-      'border-radius:5px;padding:4px 12px;font-weight:800;font-size:11.5px;cursor:pointer">Reintentar</button>';
+    el.innerHTML = '<span>\u26A0 Sin conexión con la planilla. Se está mostrando la última copia guardada en este ' +
+      'equipo: lo que cargues ahora puede no llegar al servidor.</span>' +
+      '<button onclick="location.reload()" style="background:#0f1117;color:#facc15;border:none;' +
+      'border-radius:5px;padding:4px 12px;font-weight:800;font-size:11.5px;cursor:pointer">Reintentar</button>' +
+      '<button onclick="limpiarAvisoApi()" style="background:transparent;border:1px solid rgba(0,0,0,.35);' +
+      'color:#0f1117;border-radius:5px;padding:4px 10px;font-weight:800;font-size:11.5px;cursor:pointer">Ocultar</button>';
     const tabs = document.querySelector('.nav-tabs');
     tabs.parentNode.insertBefore(el, tabs.nextSibling);
   }
@@ -2453,6 +2551,7 @@ function dayName(d) {
   return d.toLocaleDateString('es-AR',{weekday:'short'}).toUpperCase().replace('.','');
 }
 const DAYS_ES = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
+const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 function isToday(iso) {
   return iso === toISO(new Date());
 }
@@ -2599,8 +2698,9 @@ function renderBody() {
       <div class="day-info">
         <span class="day-name-big">${DAYS_ES[date.getDay()]} ${date.getDate()}</span>
         ${today ? '<span class="day-badge-hoy">HOY</span>' : ''}
+        ${esFeriado(iso) ? `<span class="day-badge-feriado">FERIADO · ${esFeriado(iso)}</span>` : ''}
         <span class="day-count">${dayTasks.filter(t=>t.tipo!=='NO').length} citas</span>
-        ${esSabado ? `<span class="day-count" style="color:var(--accent2)">Trabajan: ${sabadoTechs(iso).join(', ')} · 08:00–12:00</span>` : ''}
+        ${esSabado && !esFeriado(iso) ? `<span class="day-count" style="color:var(--accent2)">Trabajan: ${sabadoTechs(iso).join(', ')} · 08:00–12:00</span>` : ''}
       </div>`;
     headerRow.appendChild(headerTd);
     tbody.appendChild(headerRow);
@@ -2857,8 +2957,11 @@ async function loadTrabajosSilent() {
   if (trabajosLoaded || !API_URL || API_URL.startsWith('TU_')) return;
   try {
     const r = await jsonpRequest({ action: 'getTrabajos' });
-    if (r.ok) { trabajos = r.data || []; trabajosLoaded = true; }
-  } catch(e) {}
+    if (r.ok) { trabajos = r.data || []; trabajosLoaded = true; guardarRespaldo('trabajos', trabajos); }
+  } catch(e) {
+    const bk = leerRespaldo('trabajos');
+    if (bk && !trabajos.length) trabajos = bk;
+  }
 }
 
 function closeModal() {
@@ -3091,6 +3194,101 @@ document.getElementById('nextWeek').addEventListener('click', () => {
   render();
 });
 
+
+// ══════════════════════════════════════════
+// ── HORAS DISPONIBLES PARA VENDER ──
+// Capacidad productiva del mes (jornada − pausas − feriados − sábados que no
+// le tocan) menos todo lo ya comprometido: trabajos, cursos, viajes, internos
+// y ausencias. Lo que queda es lo que Mara puede prometer.
+// ══════════════════════════════════════════
+function mesDias(anio, mes) {
+  const out = [];
+  const d = new Date(anio, mes, 1);
+  while (d.getMonth() === mes) { out.push(toISO(new Date(d))); d.setDate(d.getDate() + 1); }
+  return out;
+}
+
+function calcularDisponibilidad(anio, mes, desdeHoy) {
+  const hoy = toISO(new Date());
+  const dias = mesDias(anio, mes).filter(d => !desdeHoy || d >= hoy);
+  return TECNICOS.map(tc => {
+    let cap = 0, comprometido = 0, capacitacion = 0, ausencia = 0;
+    dias.forEach(d => {
+      const c = scheduledHours(tc.id, d);
+      cap += c;
+      tasks.filter(x => x.tech === tc.id && x.date === d).forEach(x => {
+        const hs = taskHours(x);
+        if (x.tipo === 'NO') { if (c > 0) ausencia += Math.min(hs, c); return; }
+        if (x.tipo === 'DEM') return;                 // la demora no es venta
+        if (x.tipo === 'C')  { capacitacion += hs; }
+        comprometido += hs;
+      });
+    });
+    const capNeta = Math.max(0, cap - ausencia);
+    const libre = Math.max(0, capNeta - comprometido);
+    return {
+      id: tc.id, name: tc.name, cap: capNeta, comprometido: comprometido,
+      capacitacion: capacitacion, ausencia: ausencia, libre: libre,
+      pct: capNeta ? Math.round(comprometido / capNeta * 100) : 0
+    };
+  });
+}
+
+let dispoDesdeHoy = true;
+function toggleDispoDesde() { dispoDesdeHoy = !dispoDesdeHoy; renderDisponibilidad(); }
+
+function renderDisponibilidad() {
+  const wrap = document.getElementById('dispoWrap');
+  if (!wrap) return;
+  const base = analyticsPeriod === 'mes' ? analyticsMonth : analyticsMonday;
+  const anio = base.getFullYear(), mes = base.getMonth();
+  const filas = calcularDisponibilidad(anio, mes, dispoDesdeHoy);
+
+  const feriados = mesDias(anio, mes).filter(esFeriado);
+  const totLibre = filas.reduce((a, x) => a + x.libre, 0);
+  const totCap   = filas.reduce((a, x) => a + x.cap, 0);
+
+  const lbl = document.getElementById('dispoLabel');
+  if (lbl) lbl.textContent = '— ' + MESES_ES[mes] + ' ' + anio + ' · ' +
+    fmtHoras(totLibre) + ' libres de ' + fmtHoras(totCap);
+
+  const avisoFeriado = feriados.length
+    ? '<div class="dispo-nota">🚩 Feriados descontados: ' +
+      feriados.map(f => f.slice(8) + '/' + f.slice(5,7) + ' ' + esFeriado(f)).join(' · ') + '</div>'
+    : '<div class="dispo-nota">Sin feriados este mes.</div>';
+
+  wrap.innerHTML =
+    '<div class="dispo-head">' +
+      '<span class="dispo-toggle" onclick="toggleDispoDesde()">' +
+        (dispoDesdeHoy ? '📅 De hoy en adelante' : '📅 Mes completo') + '</span>' +
+    '</div>' +
+    '<table class="dispo-table"><thead><tr>' +
+      '<th>Técnico</th><th>Capacidad</th><th>Comprometido</th>' +
+      '<th>Capacitación</th><th>Ausencias</th><th>Libre para vender</th><th>Ocupación</th>' +
+    '</tr></thead><tbody>' +
+    filas.map(f => {
+      const col = f.pct >= 95 ? '#ef4444' : f.pct >= 75 ? '#facc15' : '#22c55e';
+      return '<tr>' +
+        '<td class="dispo-name">' + esc(f.name) + '</td>' +
+        '<td>' + fmtHoras(f.cap) + '</td>' +
+        '<td>' + fmtHoras(f.comprometido) + '</td>' +
+        '<td>' + (f.capacitacion ? fmtHoras(f.capacitacion) : '—') + '</td>' +
+        '<td>' + (f.ausencia ? fmtHoras(f.ausencia) : '—') + '</td>' +
+        '<td class="dispo-libre" style="color:' + col + '">' + fmtHoras(f.libre) + '</td>' +
+        '<td><div class="dispo-bar"><div class="dispo-fill" style="width:' +
+          Math.min(100, f.pct) + '%;background:' + col + '"></div></div>' +
+          '<span class="dispo-pct">' + f.pct + '%</span></td>' +
+      '</tr>';
+    }).join('') +
+    '<tr class="dispo-total"><td>TOTAL EQUIPO</td>' +
+      '<td>' + fmtHoras(totCap) + '</td>' +
+      '<td>' + fmtHoras(filas.reduce((a,x)=>a+x.comprometido,0)) + '</td>' +
+      '<td>' + fmtHoras(filas.reduce((a,x)=>a+x.capacitacion,0)) + '</td>' +
+      '<td>' + fmtHoras(filas.reduce((a,x)=>a+x.ausencia,0)) + '</td>' +
+      '<td class="dispo-libre">' + fmtHoras(totLibre) + '</td><td></td></tr>' +
+    '</tbody></table>' + avisoFeriado;
+}
+
 // Analytics: cargar mes cuando es necesario
 async function renderAnalytics() {
   if (analyticsPeriod === 'mes') {
@@ -3112,6 +3310,7 @@ async function renderAnalytics() {
   await loadRangoEficiencia();
   try { renderTallerReport(); } catch(e) { console.warn('renderTallerReport:', e.message); }
   try { renderEficiencia(); } catch(e) { console.warn('renderEficiencia:', e.message); }
+  try { renderDisponibilidad(); } catch(e) { console.warn('renderDisponibilidad:', e.message); }
 }
 
 // ══════════════════════════════════════════
@@ -3150,8 +3349,11 @@ async function loadCasosSilent() {
   if (casosLoaded || !API_URL || API_URL.startsWith('TU_')) return;
   try {
     const r = await jsonpRequest({ action: 'getCasos' });
-    if (r.ok) { casos = r.data || []; casosLoaded = true; }
-  } catch(e) {}
+    if (r.ok) { casos = r.data || []; casosLoaded = true; guardarRespaldo('casos', casos); }
+  } catch(e) {
+    const bk = leerRespaldo('casos');
+    if (bk && !casos.length) casos = bk;
+  }
 }
 
 // Rango amplio de citas: hace falta para medir las horas usadas por trabajo,
@@ -3842,9 +4044,11 @@ async function loadTrabajos(force) {
   showLoading('Cargando trabajos…');
   try {
     const r = await jsonpRequest({ action: 'getTrabajos' });
-    if (r.ok) { trabajos = r.data || []; trabajosLoaded = true; }
+    if (r.ok) { trabajos = r.data || []; trabajosLoaded = true; guardarRespaldo('trabajos', trabajos); }
   } catch(e) {
-    console.warn('No se pudieron cargar trabajos:', e.message);
+    const bk = leerRespaldo('trabajos');
+    if (bk && !trabajos.length) trabajos = bk;
+    avisarApiCaida(e);
   } finally {
     hideLoading();
     renderTaller();
@@ -4175,9 +4379,11 @@ async function loadCasos(force) {
   showLoading('Cargando casos…');
   try {
     const r = await jsonpRequest({ action:'getCasos' });
-    if (r.ok) { casos = r.data || []; casosLoaded = true; }
+    if (r.ok) { casos = r.data || []; casosLoaded = true; guardarRespaldo('casos', casos); }
   } catch(e) {
-    console.warn('No se pudieron cargar casos:', e.message);
+    const bk = leerRespaldo('casos');
+    if (bk && !casos.length) casos = bk;
+    avisarApiCaida(e);
   } finally {
     hideLoading();
     renderRecepcion();
