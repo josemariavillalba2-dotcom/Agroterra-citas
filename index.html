@@ -1965,6 +1965,7 @@
         <select id="fEnd"></select>
       </div>
     </div>
+    <div id="horasCalc" style="font-size:11px;color:var(--accent2);margin:-4px 0 12px;min-height:15px"></div>
     <div class="form-row" id="rowTrabajo">
       <label>Trabajo (del pizarrón de Taller)</label>
       <select id="fTrabajo"></select>
@@ -2256,6 +2257,16 @@ function jornadaHorasBrutas(techId, dateIso) {
 function scheduledHours(techId, dateIso) {
   const bruta = jornadaHorasBrutas(techId, dateIso);
   return bruta ? Math.max(0, bruta - horasPausas(dateIso, techId)) : 0;
+}
+
+// Refrigerios fijos que caen dentro del tramo de una cita
+function pausasDentro(t) {
+  const si = slotIndex(t.start), ei = slotIndex(t.end);
+  return pausasDeDia(t.date, t.tech).reduce((a, p) => {
+    const ps = slotIndex(p.ini), pf = slotIndex(p.fin);
+    const solap = Math.min(ei, pf) - Math.max(si, ps);
+    return a + (solap > 0 ? solap * SLOT_H : 0);
+  }, 0);
 }
 
 // Horas de una cita que caen FUERA de la jornada (= horas extra)
@@ -2950,7 +2961,40 @@ function openModal(dateStr, techId, startTime, task) {
   }
 
   renderTipoGrid();
+  actualizarHorasCalc();
 }
+
+// Lo que va a computar la cita, en vivo mientras se elige el horario
+function actualizarHorasCalc() {
+  const el = document.getElementById('horasCalc');
+  if (!el) return;
+  const date  = document.getElementById('fDate').value;
+  const tech  = document.getElementById('fTech').value;
+  const start = document.getElementById('fStart').value;
+  const end   = document.getElementById('fEnd').value;
+  if (!date || !tech || !start || !end) { el.textContent = ''; return; }
+  const si = slotIndex(start), ei = slotIndex(end);
+  if (ei <= si) { el.innerHTML = '<span style="color:#ef4444">La hora de fin debe ser posterior al inicio.</span>'; return; }
+  if (selectedTipo === 'NO' || selectedTipo === 'DEM') {
+    el.textContent = fmtHoras((ei - si) * SLOT_H) + ' agendadas.';
+    return;
+  }
+  const falso = { date:date, tech:tech, start:start, end:end, tipo:selectedTipo };
+  const desc = pausasDentro(falso);
+  const netas = taskHours(falso);
+  el.innerHTML = desc
+    ? '⏱ <strong>' + fmtHoras(netas) + ' de trabajo efectivo</strong> — ya se descuentan ' +
+      fmtHoras(desc) + ' de refrigerio ' +
+      '<span style="color:var(--text-dim)">(' + pausasDeDia(date, tech)
+        .filter(p => Math.min(ei, slotIndex(p.fin)) - Math.max(si, slotIndex(p.ini)) > 0)
+        .map(p => p.ini + '–' + p.fin).join(', ') + ')</span>'
+    : '⏱ <strong>' + fmtHoras(netas) + ' de trabajo efectivo.</strong>';
+}
+
+['fDate','fTech','fStart','fEnd'].forEach(function(id) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', actualizarHorasCalc);
+});
 
 // Carga de trabajos sin tocar la UI del taller
 async function loadTrabajosSilent() {
@@ -3016,6 +3060,7 @@ function onTrabajoChange() {
 }
 
 function renderTipoGrid() {
+  try { if (document.getElementById('horasCalc')) setTimeout(actualizarHorasCalc, 0); } catch(e) {}
   const grid = document.getElementById('tipoGrid');
   grid.innerHTML = '';
   TIPOS.forEach(tipo => {
@@ -3073,16 +3118,6 @@ async function saveTask() {
   if (clash) {
     const _tn = TECNICOS.find(t=>t.id===tech); const techName = (_tn&&_tn.name) || tech;
     if (!confirm(`⚠ SOLAPAMIENTO\n\n${techName} ya tiene "${clash.cliente}${clash.desc?' · '+clash.desc:''}" de ${clash.start} a ${clash.end} ese día.\n\n¿Guardar igual la cita superpuesta?`)) return;
-  }
-
-  // ── Aviso de pausa fija pisada ──
-  if (selectedTipo !== 'NO' && selectedTipo !== 'DEM') {
-    const pisa = pausasDeDia(date, tech).filter(p =>
-      slotIndex(p.ini) >= si && slotIndex(p.ini) < ei);
-    if (pisa.length) {
-      const det = pisa.map(p => '· ' + p.label + ' (' + p.ini + '–' + p.fin + ')').join('\n');
-      if (!confirm('☕ Esta cita se superpone con:\n\n' + det + '\n\nEsas horas no son productivas.\n\n¿Guardar igual?')) return;
-    }
   }
 
   // ── Aviso de horas extra (fuera de jornada) ──
@@ -3165,6 +3200,7 @@ function showTooltip(e, task) {
   document.getElementById('ttMeta').innerHTML = `
     ${task.desc ? `<span style="color:var(--text)">${esc(task.desc)}</span><br>` : ''}
     ${(tipo&&tipo.label) || task.tipo} &nbsp;·&nbsp; ${task.tech} &nbsp;·&nbsp; ${task.start}–${task.end}
+    ${pausasDentro(task) ? `<br><span style="color:var(--color-G)">${fmtHoras(taskHours(task))} efectivas — ${fmtHoras(pausasDentro(task))} de refrigerio descontadas</span>` : `<br><span style="color:var(--text-dim)">${fmtHoras(taskHours(task))}</span>`}
     ${task.demora ? `<br><span style="color:var(--color-DEM);margin-top:4px;display:block">⚠ ${esc(task.demora)}</span>` : ''}
   `;
   tt.style.display = 'block';
@@ -3621,9 +3657,13 @@ function barraHoras(t) {
     '</div>';
 }
 
+// Horas efectivas de una cita: el tramo agendado menos los refrigerios fijos
+// que caen dentro. Así 08:00–17:00 son 8 h de trabajo, no 9.
 function taskHours(t) {
   const si = slotIndex(t.start), ei = slotIndex(t.end);
-  return Math.max(0, (ei - si) * SLOT_H);
+  const bruto = Math.max(0, (ei - si) * SLOT_H);
+  if (!bruto || t.tipo === 'NO' || t.tipo === 'DEM') return bruto;
+  return Math.max(0, bruto - pausasDentro(t));
 }
 
 // ── KPI Cards ──
