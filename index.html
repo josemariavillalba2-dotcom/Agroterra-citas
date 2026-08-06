@@ -3385,7 +3385,7 @@ async function loadCasosSilent() {
   if (casosLoaded || !API_URL || API_URL.startsWith('TU_')) return;
   try {
     const r = await jsonpRequest({ action: 'getCasos' });
-    if (r.ok) { casos = r.data || []; casosLoaded = true; guardarRespaldo('casos', casos); }
+    if (r.ok) { casos = fusionarPendientes(r.data || []); casosLoaded = true; guardarRespaldo('casos', casos); }
   } catch(e) {
     const bk = leerRespaldo('casos');
     if (bk && !casos.length) casos = bk;
@@ -3561,6 +3561,7 @@ function switchTab(tab) {
   if (tab==='analytics') renderAnalytics();
   if (tab==='taller') loadTrabajos();
   if (tab==='recepcion') loadCasos();
+  try { avisarPendientes(); } catch(e) {}
   if (tab==='tablero') { try { renderCriterio(); } catch(e) {} }
 }
 
@@ -4413,21 +4414,118 @@ function thumbLink(id) {
     ' style="background-image:url(https://drive.google.com/thumbnail?id=' + id + '&sz=w200)" title="Abrir captura"></a>';
 }
 
+// ── CASOS SIN CONFIRMAR ──
+// Un caso que la planilla no confirmó queda guardado en el equipo y se vuelve a
+// mostrar siempre, incluso si el servidor responde vacío. Así no se pierde nada.
+const PEND_KEY = 'ag_casos_pendientes';
+function leerPendientes() {
+  try { return JSON.parse(localStorage.getItem(PEND_KEY) || '[]'); } catch(e) { return []; }
+}
+function guardarPendientes(arr) {
+  try { localStorage.setItem(PEND_KEY, JSON.stringify(arr)); } catch(e) {}
+}
+function marcarPendiente(caso) {
+  const arr = leerPendientes().filter(x => String(x.id) !== String(caso.id));
+  caso._pend = true;
+  arr.push(caso);
+  guardarPendientes(arr);
+  avisarPendientes();
+}
+function confirmarPendiente(idLocal) {
+  guardarPendientes(leerPendientes().filter(x => String(x.id) !== String(idLocal)));
+  avisarPendientes();
+}
+// Une lo que vino del servidor con lo que todavía no se pudo subir
+function fusionarPendientes(delServidor) {
+  const pend = leerPendientes();
+  if (!pend.length) return delServidor;
+  const ids = {};
+  delServidor.forEach(c => { ids[String(c.id)] = true; });
+  const faltan = pend.filter(p => !ids[String(p.id)]);
+  return delServidor.concat(faltan);
+}
+
 async function loadCasos(force) {
   if (casosLoaded && !force) { renderRecepcion(); return; }
-  if (!API_URL || API_URL.startsWith('TU_')) { renderRecepcion(); return; }
+  if (!API_URL || API_URL.startsWith('TU_')) {
+    casos = fusionarPendientes(casos);
+    renderRecepcion();
+    return;
+  }
   showLoading('Cargando casos…');
   try {
     const r = await jsonpRequest({ action:'getCasos' });
-    if (r.ok) { casos = r.data || []; casosLoaded = true; guardarRespaldo('casos', casos); }
+    if (r.ok) {
+      casos = fusionarPendientes(r.data || []);
+      casosLoaded = true;
+      guardarRespaldo('casos', casos);
+      if (!r.data || !r.data.length) avisarPlanillaSinCasos();
+    } else {
+      casos = fusionarPendientes(leerRespaldo('casos') || casos);
+      avisarPlanillaSinCasos(r.error);
+    }
   } catch(e) {
-    const bk = leerRespaldo('casos');
-    if (bk && !casos.length) casos = bk;
+    casos = fusionarPendientes(leerRespaldo('casos') || casos);
     avisarApiCaida(e);
   } finally {
     hideLoading();
     renderRecepcion();
+    avisarPendientes();
   }
+}
+
+// Aviso: hay casos cargados en este equipo que la planilla no tiene
+function avisarPendientes() {
+  const pend = leerPendientes();
+  let el = document.getElementById('pendBanner');
+  if (!pend.length) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'pendBanner';
+    el.style.cssText = 'background:#facc15;color:#0f1117;font-size:12.5px;font-weight:700;' +
+      'padding:9px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+    const tabs = document.querySelector('.nav-tabs');
+    tabs.parentNode.insertBefore(el, tabs.nextSibling);
+  }
+  el.innerHTML = '<span>\u26A0 ' + pend.length + ' caso(s) guardados sólo en este equipo: la planilla no los recibió. ' +
+    'No se van a perder, pero nadie más los ve.</span>' +
+    '<button onclick="reintentarPendientes()" style="background:#0f1117;color:#facc15;border:none;' +
+    'border-radius:5px;padding:4px 12px;font-weight:800;font-size:11.5px;cursor:pointer">Reintentar envío</button>';
+}
+
+// Aviso: la planilla responde pero no sabe de casos (falta el código o la hoja)
+let avisoSinCasosHecho = false;
+function avisarPlanillaSinCasos(err) {
+  if (avisoSinCasosHecho || leerPendientes().length === 0) return;
+  avisoSinCasosHecho = true;
+  console.warn('La planilla no devolvió casos.', err || '');
+}
+
+// Reintenta subir todo lo que quedó pendiente
+async function reintentarPendientes() {
+  const pend = leerPendientes();
+  if (!pend.length) return;
+  showLoading('Reintentando ' + pend.length + ' caso(s)…');
+  let ok = 0, fallo = 0;
+  for (const p of pend) {
+    const data = Object.assign({}, p);
+    delete data.id; delete data._pend; delete data.historial;
+    try {
+      const r = await jsonpRequest(Object.assign({ action:'createCaso' }, data));
+      if (r && r.ok && r.id) {
+        const vivo = casos.find(x => String(x.id) === String(p.id));
+        if (vivo) { vivo.id = r.id; delete vivo._pend; }
+        confirmarPendiente(p.id);
+        ok++;
+      } else fallo++;
+    } catch(e) { fallo++; }
+  }
+  hideLoading();
+  renderRecepcion();
+  avisarPendientes();
+  alert(ok + ' caso(s) subidos a la planilla.' +
+    (fallo ? '\n\n' + fallo + ' siguen sin poder subirse: la planilla no está aceptando casos. ' +
+    'Revisá que el código de Recepción esté pegado en el Apps Script y que exista la hoja CASOS.' : ''));
 }
 
 function toggleCasosCerrados() {
@@ -4514,6 +4612,7 @@ function casoCardHTML(c) {
   if (c.recibidoPor) tags.push(`<span class="caso-tag">${esc(c.recibidoPor)}</span>`);
   if (c.ordenNro) tags.push(`<span class="caso-tag orden">OT ${esc(c.ordenNro)}</span>`);
   if (c.horasPresup) tags.push(`<span class="caso-tag">⏱ ${esc(c.horasPresup)} h presup.</span>`);
+  if (c._pend || String(c.id).startsWith('local_')) tags.push('<span class="caso-tag falta">Sin guardar en planilla</span>');
   if (comprobIds(c).length) tags.push(`<span class="caso-tag ok">📎 Aprobación ${comprobIds(c).length}</span>`);
   else if (c.estado==='APROBADO' || c.estado==='TALLER') tags.push('<span class="caso-tag falta">Sin respaldo</span>');
   if (c.presupuestoMonto) tags.push(`<span class="caso-tag plata">$ ${esc(c.presupuestoMonto)}</span>`);
@@ -4687,9 +4786,14 @@ async function saveCaso() {
     renderRecepcion();
     try { renderCriterio(); } catch(e) {}
     try {
-      await jsonpRequest(Object.assign({ action:'updateCaso', id:id }, data));
+      const r = await jsonpRequest(Object.assign({ action:'updateCaso', id:id }, data));
+      if (!r || !r.ok) { if (c) marcarPendiente(c); }
       if (log) await jsonpRequest({ action:'addHistorialCaso', id:id, texto:log });
-    } catch(e) { console.warn('updateCaso:', e.message); }
+    } catch(e) {
+      console.warn('updateCaso:', e.message);
+      if (c) marcarPendiente(c);
+    }
+    guardarRespaldo('casos', casos);
     if (fotos.length) await subirFotos(id, fotos);
   } else {
     const nuevo = Object.assign({ id:'local_'+Date.now(), fecha:new Date().toISOString(), historial:[] }, data);
@@ -4699,8 +4803,13 @@ async function saveCaso() {
     try { renderCriterio(); } catch(e) {}
     try {
       const r = await jsonpRequest(Object.assign({ action:'createCaso', fecha:nuevo.fecha }, data));
-      if (r.ok && r.id) nuevo.id = r.id;
-    } catch(e) { console.warn('createCaso:', e.message); }
+      if (r && r.ok && r.id) { nuevo.id = r.id; delete nuevo._pend; }
+      else marcarPendiente(nuevo);
+    } catch(e) {
+      console.warn('createCaso:', e.message);
+      marcarPendiente(nuevo);
+    }
+    guardarRespaldo('casos', casos);
     if (fotos.length) await subirFotos(nuevo.id, fotos);
   }
 }
@@ -4714,6 +4823,8 @@ async function deleteCaso() {
   casos = casos.filter(x => String(x.id)!==String(id));
   closeCasoModal();
   renderRecepcion();
+  confirmarPendiente(id);
+  guardarRespaldo('casos', casos);
   try { await jsonpRequest({ action:'deleteCaso', id:id }); }
   catch(e) { console.warn('deleteCaso:', e.message); }
 }
@@ -4726,10 +4837,16 @@ async function cambiarEstadoCaso(c, estado, extra) {
   c.historial.push({ ts:new Date().toISOString(), txt:log });
   renderRecepcion();
   try { renderCriterio(); } catch(e) {}
+  guardarRespaldo('casos', casos);
+  if (String(c.id).startsWith('local_')) marcarPendiente(c);
   try {
-    await jsonpRequest(Object.assign({ action:'updateCaso', id:c.id, estado:estado }, extra || {}));
+    const r = await jsonpRequest(Object.assign({ action:'updateCaso', id:c.id, estado:estado }, extra || {}));
+    if (!r || !r.ok) marcarPendiente(c);
     await jsonpRequest({ action:'addHistorialCaso', id:c.id, texto:log });
-  } catch(e) { console.warn('cambiarEstadoCaso:', e.message); }
+  } catch(e) {
+    console.warn('cambiarEstadoCaso:', e.message);
+    marcarPendiente(c);
+  }
 }
 
 function marcarEnviado(c) {
