@@ -3486,9 +3486,13 @@ function ordenesConsolidadas() {
   });
   return Object.keys(mapa).map(k => {
     const g = mapa[k];
-    g.pct = g.pres ? Math.round(g.real / g.pres * 100) : null;
-    g.desvio = g.pres ? g.real - g.pres : 0;
+    // Sin horas cumplidas no hay resultado que informar: una orden que todavía
+    // no se tocó no "ahorró" las horas presupuestadas.
+    const medible = g.pres > 0 && g.real > 0;
+    g.pct    = medible ? Math.round(g.real / g.pres * 100) : null;
+    g.desvio = medible ? g.real - g.pres : null;
     g.cerrada = g.estados.every(e => e === 'TERMINADO' || e === 'ENTREGADO');
+    g.fase = g.cerrada ? 'cerrada' : (g.real > 0 ? 'en curso' : 'sin arrancar');
     g.titulo = g.trabajos[0].titulo || '';
     g.unidad = g.trabajos[0].unidad || '';
     return g;
@@ -3504,12 +3508,17 @@ function renderCierreOrdenes() {
   let ordenes = ordenesConsolidadas();
   if (efOrdenSoloCerradas) ordenes = ordenes.filter(o => o.cerrada);
 
-  const conPres = ordenes.filter(o => o.pres > 0);
-  const desvioTot = conPres.reduce((a, o) => a + o.desvio, 0);
+  // El desvío que cierra es el de las órdenes terminadas; las en curso van aparte
+  const cerradas = ordenes.filter(o => o.cerrada && o.desvio !== null);
+  const enCurso  = ordenes.filter(o => !o.cerrada && o.desvio !== null);
+  const sumD = arr => arr.reduce((a, o) => a + o.desvio, 0);
+  const signo = n => (n >= 0 ? '+' : '') + fmtHoras(n);
+  const partes = [];
+  if (cerradas.length) partes.push('desvío de ' + cerradas.length + ' cerrada(s): ' + signo(sumD(cerradas)));
+  if (enCurso.length)  partes.push(enCurso.length + ' en curso: ' + signo(sumD(enCurso)));
   const lbl = document.getElementById('efOrdenLabel');
   if (lbl) lbl.textContent = ordenes.length
-    ? '— ' + ordenes.length + ' orden(es)' + (conPres.length
-        ? ' · desvío acumulado ' + (desvioTot >= 0 ? '+' : '') + fmtHoras(desvioTot) : '')
+    ? '— ' + ordenes.length + ' orden(es)' + (partes.length ? ' · ' + partes.join(' · ') : '')
     : '';
 
   if (!ordenes.length) {
@@ -3529,6 +3538,8 @@ function renderCierreOrdenes() {
     '</tr></thead><tbody>' +
     ordenes.map(o => {
       const col = o.pct === null ? 'var(--text-dim)' : colorEficiencia(o.pct);
+      const faseCol = o.fase === 'cerrada' ? 'var(--color-S)'
+                    : o.fase === 'en curso' ? 'var(--accent)' : 'var(--text-dim)';
       const detalle = Object.keys(o.porTech)
         .sort((a, b) => o.porTech[b] - o.porTech[a])
         .map(id => {
@@ -3540,13 +3551,13 @@ function renderCierreOrdenes() {
         }).join('') || '<span style="color:var(--text-dim)">sin horas cargadas</span>';
       return '<tr>' +
         '<td class="dispo-name"><span class="ot-num">OT ' + esc(o.ot) + '</span>' +
-          (o.cerrada ? '<span class="ot-cerrada">cerrada</span>' : '') + '</td>' +
+          '<span class="ot-cerrada" style="color:' + faseCol + '">' + o.fase + '</span></td>' +
         '<td style="text-align:left">' + esc(o.titulo) +
           (o.unidad ? '<span class="ot-unidad">' + esc(o.unidad) + '</span>' : '') + '</td>' +
         '<td>' + (o.pres ? fmtHoras(o.pres) : '—') + '</td>' +
         '<td>' + fmtHoras(o.real) + '</td>' +
-        '<td style="color:' + col + '">' + (o.pres
-            ? (o.desvio >= 0 ? '+' : '') + fmtHoras(o.desvio) : '—') + '</td>' +
+        '<td style="color:' + col + '">' +
+          (o.desvio === null ? '—' : (o.desvio >= 0 ? '+' : '') + fmtHoras(o.desvio)) + '</td>' +
         '<td><div class="dispo-bar"><div class="dispo-fill" style="width:' +
           (o.pct === null ? 0 : Math.min(100, o.pct)) + '%;background:' + col + '"></div></div>' +
           '<span class="dispo-pct" style="color:' + col + '">' +
@@ -3556,7 +3567,9 @@ function renderCierreOrdenes() {
     }).join('') +
     '</tbody></table>' +
     '<div class="dispo-nota">Sólo cuentan las citas ya ocurridas y se descuentan los refrigerios. ' +
-    'El desvío en verde es trabajo hecho en menos horas de las presupuestadas.</div>';
+    'Una orden sin horas cumplidas no computa resultado (—). ' +
+    'El desvío en verde es trabajo hecho en menos horas de las presupuestadas; el acumulado del título ' +
+    'separa las órdenes cerradas de las que siguen en curso.</div>';
 }
 
 function renderEficiencia() {
@@ -5353,36 +5366,4 @@ if (TV_MODE) {
 
   // Arrancar en la semana actual y rotar
   tvShow(TV_VIEWS[0]);
-  setInterval(tvNext, TV_ROTATE_MS);
-
-  // Recarga de datos periódica
-  setInterval(() => {
-    loadedRanges.clear();
-    tasks = [];
-    if (currentTab === 'analytics') renderAnalytics();
-    else render();
-  }, TV_REFRESH_MS);
-}
-
-// ── SERVICE WORKER — registro con auto-actualización ──
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function() {
-    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
-      .then(function(reg) {
-        // Chequear actualizaciones cada 30 min (clave para el tele siempre prendido)
-        setInterval(function() { reg.update().catch(function(){}); }, 30 * 60 * 1000);
-      })
-      .catch(function(){});
-
-    // Cuando se activa un service worker nuevo, recargar UNA vez para tomar la versión fresca
-    var reloaded = false;
-    navigator.serviceWorker.addEventListener("controllerchange", function() {
-      if (reloaded) return;
-      reloaded = true;
-      location.reload();
-    });
-  });
-}
-</script>
-</body>
-</html>
+  setInterval(t
