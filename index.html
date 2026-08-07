@@ -297,6 +297,12 @@
     font-size: 10.5px; color: var(--text-dim); flex-wrap: wrap;
   }
   .trabajo-nota { color: var(--accent); }
+  .trabajo-ot {
+    display: inline-block; margin-top: 6px;
+    font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 800; letter-spacing: .06em;
+    color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 3px; padding: 1px 6px;
+  }
   .hrs-row { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
   .hrs-bar {
     flex: 1; height: 6px; background: var(--bg);
@@ -1176,6 +1182,23 @@
     border-top: 1px solid var(--border); border-bottom: none;
     font-weight: 800; color: var(--text); padding-top: 9px;
   }
+  .ot-num {
+    font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 800;
+    color: var(--accent); letter-spacing: .04em;
+  }
+  .ot-cerrada {
+    display: block; font-size: 9px; font-weight: 700;
+    color: var(--color-S); text-transform: uppercase; letter-spacing: .05em;
+  }
+  .ot-unidad { display: block; font-size: 10px; color: var(--accent2); }
+  .ot-techs { text-align: left !important; }
+  .ot-tech {
+    display: inline-block; margin: 0 5px 3px 0;
+    font-size: 10.5px; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px;
+  }
+  .ot-tech b { color: var(--text); font-weight: 800; }
+  .ot-tech i { font-style: normal; opacity: .6; }
   .dispo-nota { margin-top: 10px; font-size: 10.5px; color: var(--text-dim); line-height: 1.5; }
   @media (max-width: 700px) {
     .dispo-table { font-size: 10.5px; }
@@ -1824,6 +1847,16 @@
         <select id="tEstado"></select>
       </div>
     </div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>N° de orden (Autológica)</label>
+        <input type="text" id="tOrden" placeholder="Ej: 48213">
+      </div>
+      <div class="form-row">
+        <label>Horas presupuestadas</label>
+        <input type="text" id="tHorasPresup" placeholder="Ej: 8">
+      </div>
+    </div>
     <div class="form-row">
       <label>Cliente</label>
       <input type="text" id="tTitulo" placeholder="Ej: FINLAR, HECTOR Y JULIO DÍAZ">
@@ -1941,6 +1974,10 @@
     <div class="chart-card full">
       <div class="chart-title">💰 Horas disponibles para vender <span id="dispoLabel"></span></div>
       <div id="dispoWrap"></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-title">🧾 Cierre por orden de trabajo <span id="efOrdenLabel"></span></div>
+      <div id="efOrdenWrap"></div>
     </div>
     <div class="chart-card">
       <div class="chart-title">⏱ Eficiencia por trabajo <span id="efTrabajosLabel"></span></div>
@@ -3363,6 +3400,7 @@ async function renderAnalytics() {
   try { renderTallerReport(); } catch(e) { console.warn('renderTallerReport:', e.message); }
   try { renderEficiencia(); } catch(e) { console.warn('renderEficiencia:', e.message); }
   try { renderDisponibilidad(); } catch(e) { console.warn('renderDisponibilidad:', e.message); }
+  try { renderCierreOrdenes(); } catch(e) { console.warn('renderCierreOrdenes:', e.message); }
 }
 
 // ══════════════════════════════════════════
@@ -3427,6 +3465,100 @@ async function loadRangoEficiencia() {
 }
 
 // Eficiencia por trabajo y por técnico: 100% = se usó exactamente lo presupuestado
+// ── CIERRE POR ORDEN DE TRABAJO ──
+// El N° de orden de Autológica es la unidad de análisis: agrupa los trabajos
+// que comparten orden, sus horas presupuestadas y qué técnico puso cada hora.
+function ordenesConsolidadas() {
+  const mapa = {};
+  trabajos.forEach(t => {
+    const ot = ordenDe(t);
+    if (!ot) return;
+    if (!mapa[ot]) mapa[ot] = { ot: ot, trabajos: [], pres: 0, real: 0, porTech: {}, estados: [] };
+    const g = mapa[ot];
+    g.trabajos.push(t);
+    g.pres += horasPresupTrabajo(t);
+    g.estados.push(t.estado);
+    citasCumplidas(t.id).forEach(x => {
+      const hs = taskHours(x);
+      g.real += hs;
+      g.porTech[x.tech] = (g.porTech[x.tech] || 0) + hs;
+    });
+  });
+  return Object.keys(mapa).map(k => {
+    const g = mapa[k];
+    g.pct = g.pres ? Math.round(g.real / g.pres * 100) : null;
+    g.desvio = g.pres ? g.real - g.pres : 0;
+    g.cerrada = g.estados.every(e => e === 'TERMINADO' || e === 'ENTREGADO');
+    g.titulo = g.trabajos[0].titulo || '';
+    g.unidad = g.trabajos[0].unidad || '';
+    return g;
+  }).sort((a, b) => (b.pct === null ? -1 : b.pct) - (a.pct === null ? -1 : a.pct));
+}
+
+let efOrdenSoloCerradas = false;
+function toggleEfOrden() { efOrdenSoloCerradas = !efOrdenSoloCerradas; renderCierreOrdenes(); }
+
+function renderCierreOrdenes() {
+  const wrap = document.getElementById('efOrdenWrap');
+  if (!wrap) return;
+  let ordenes = ordenesConsolidadas();
+  if (efOrdenSoloCerradas) ordenes = ordenes.filter(o => o.cerrada);
+
+  const conPres = ordenes.filter(o => o.pres > 0);
+  const desvioTot = conPres.reduce((a, o) => a + o.desvio, 0);
+  const lbl = document.getElementById('efOrdenLabel');
+  if (lbl) lbl.textContent = ordenes.length
+    ? '— ' + ordenes.length + ' orden(es)' + (conPres.length
+        ? ' · desvío acumulado ' + (desvioTot >= 0 ? '+' : '') + fmtHoras(desvioTot) : '')
+    : '';
+
+  if (!ordenes.length) {
+    wrap.innerHTML = '<div style="color:var(--text-dim);font-size:12px">' +
+      'Todavía no hay trabajos con N° de orden. Se carga al pasar un caso a taller, ' +
+      'o desde el trabajo en la solapa Taller.</div>';
+    return;
+  }
+
+  wrap.innerHTML =
+    '<div class="dispo-head"><span class="dispo-toggle" onclick="toggleEfOrden()">' +
+      (efOrdenSoloCerradas ? '✔ Sólo órdenes cerradas' : '📋 Todas las órdenes') +
+    '</span></div>' +
+    '<table class="dispo-table"><thead><tr>' +
+      '<th>Orden</th><th>Cliente / unidad</th><th>Presup.</th><th>Real</th>' +
+      '<th>Desvío</th><th>Resultado</th><th>Técnicos y horas</th>' +
+    '</tr></thead><tbody>' +
+    ordenes.map(o => {
+      const col = o.pct === null ? 'var(--text-dim)' : colorEficiencia(o.pct);
+      const detalle = Object.keys(o.porTech)
+        .sort((a, b) => o.porTech[b] - o.porTech[a])
+        .map(id => {
+          const tc = TECNICOS.find(x => x.id === id);
+          const nom = tc ? tc.name.split(' ')[0] : id;
+          const part = o.real ? Math.round(o.porTech[id] / o.real * 100) : 0;
+          return '<span class="ot-tech">' + esc(nom) + ' <b>' + fmtHoras(o.porTech[id]) +
+            '</b> <i>' + part + '%</i></span>';
+        }).join('') || '<span style="color:var(--text-dim)">sin horas cargadas</span>';
+      return '<tr>' +
+        '<td class="dispo-name"><span class="ot-num">OT ' + esc(o.ot) + '</span>' +
+          (o.cerrada ? '<span class="ot-cerrada">cerrada</span>' : '') + '</td>' +
+        '<td style="text-align:left">' + esc(o.titulo) +
+          (o.unidad ? '<span class="ot-unidad">' + esc(o.unidad) + '</span>' : '') + '</td>' +
+        '<td>' + (o.pres ? fmtHoras(o.pres) : '—') + '</td>' +
+        '<td>' + fmtHoras(o.real) + '</td>' +
+        '<td style="color:' + col + '">' + (o.pres
+            ? (o.desvio >= 0 ? '+' : '') + fmtHoras(o.desvio) : '—') + '</td>' +
+        '<td><div class="dispo-bar"><div class="dispo-fill" style="width:' +
+          (o.pct === null ? 0 : Math.min(100, o.pct)) + '%;background:' + col + '"></div></div>' +
+          '<span class="dispo-pct" style="color:' + col + '">' +
+          (o.pct === null ? '—' : o.pct + '%') + '</span></td>' +
+        '<td class="ot-techs">' + detalle + '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table>' +
+    '<div class="dispo-nota">Sólo cuentan las citas ya ocurridas y se descuentan los refrigerios. ' +
+    'El desvío en verde es trabajo hecho en menos horas de las presupuestadas.</div>';
+}
+
 function renderEficiencia() {
   const elT = document.getElementById('efTrabajosList');
   const elP = document.getElementById('efTecnicosList');
@@ -3444,7 +3576,9 @@ function renderEficiencia() {
   elT.innerHTML = filas.length ? filas.map(f => {
     const col = colorEficiencia(f.pct);
     return '<div class="bar-item">' +
-      '<span class="bar-item-label cliente" title="' + esc(f.t.titulo) + '">' + esc(f.t.titulo) + '</span>' +
+      '<span class="bar-item-label cliente" title="' + esc(f.t.titulo) + '">' +
+        (ordenDe(f.t) ? '<span style="color:var(--accent);font-weight:800">OT ' + esc(ordenDe(f.t)) + '</span> ' : '') +
+        esc(f.t.titulo) + '</span>' +
       '<div class="bar-track"><div class="bar-fill" style="width:' + Math.min(100, f.pct) + '%;background:' + col + '"></div></div>' +
       '<span class="bar-val" style="color:' + col + '">' + f.pct + '%</span>' +
       '<span class="bar-val" style="width:74px">' + fmtHoras(f.real) + '/' + fmtHoras(f.pres) + '</span>' +
@@ -3628,9 +3762,20 @@ function numHoras(v) {
   const n = parseFloat(String(v == null ? '' : v).replace(',', '.'));
   return isNaN(n) ? 0 : n;
 }
+// N° de orden del trabajo: propio, o el del caso que lo generó
+function ordenDe(t) {
+  if (t.ordenNro) return String(t.ordenNro).trim();
+  const c = casos.find(x => String(x.trabajoId || '') === String(t.id));
+  if (c && c.ordenNro) return String(c.ordenNro).trim();
+  const m = String(t.nota || '').match(/OT\s*([A-Za-z0-9\-\/]+)/);
+  return m ? m[1] : '';
+}
 function horasPresupTrabajo(t) {
   if (t.horasPresup) return numHoras(t.horasPresup);
-  const c = casos.find(x => String(x.trabajoId || '') === String(t.id));
+  const orden = ordenDe(t);
+  const c = casos.find(x =>
+    String(x.trabajoId || '') === String(t.id) ||
+    (orden && String(x.ordenNro || '').trim() === orden));
   return c ? numHoras(c.horasPresup) : 0;
 }
 function citasDeTrabajo(id) {
@@ -4187,6 +4332,7 @@ function renderTaller() {
         </div>
         ${t.unidad ? `<div class="trabajo-unidad">🚜 ${esc(t.unidad)}</div>` : ''}
         ${t.descripcion ? `<div class="trabajo-desc">${esc(t.descripcion)}</div>` : ''}
+        ${ordenDe(t) ? `<div class="trabajo-ot">OT ${esc(ordenDe(t))}</div>` : ''}
         ${barraHoras(t)}
         <div class="trabajo-meta">
           ${tecNoms.length ? `<span>👤 ${esc(tecNoms.join(', '))}</span>` : ''}
@@ -4230,6 +4376,8 @@ function openTrabajoModal(t) {
   document.getElementById('tDiv').value = t ? t.division : 'CLIENTE';
   document.getElementById('tEstado').innerHTML = ESTADOS_TRABAJO.map(e =>
     `<option value="${e.id}" ${t&&t.estado===e.id?'selected':''}>${e.label}</option>`).join('');
+  document.getElementById('tOrden').value = t ? (t.ordenNro||'') : '';
+  document.getElementById('tHorasPresup').value = t ? (t.horasPresup||'') : '';
   document.getElementById('tTitulo').value = t ? (t.titulo||'') : '';
   document.getElementById('tUnidad').value = t ? (t.unidad||'') : '';
   document.getElementById('tDesc').value = t ? (t.descripcion||'') : '';
@@ -4311,6 +4459,8 @@ async function saveTrabajo() {
     estado:      document.getElementById('tEstado').value,
     nota:        document.getElementById('tNota').value.trim(),
     tecnico:     Array.from(pickedTechs).join(','),
+    ordenNro:    document.getElementById('tOrden').value.trim(),
+    horasPresup: document.getElementById('tHorasPresup').value.trim(),
   };
   if (!data.titulo) { alert('Completá el cliente'); return; }
 
@@ -5024,6 +5174,7 @@ async function pasarATaller(c) {
     nota:        ['OT ' + c.ordenNro, c.horasPresup && (c.horasPresup + ' h presup.'), c.presupuestoNro && ('Presup. ' + c.presupuestoNro), c.garantia==='SI' && 'GARANTÍA', c.comentarios].filter(Boolean).join(' · '),
     tecnico:     '',
     horasPresup: c.horasPresup || '',
+    ordenNro:    c.ordenNro || '',
   };
   if (pasandoATaller[c.id]) return;
   pasandoATaller[c.id] = true;
