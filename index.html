@@ -3581,19 +3581,20 @@ function renderEficiencia() {
   const filas = conPresup.map(t => {
     const pres = horasPresupTrabajo(t);
     const real = horasRealTrabajo(t.id);
-    return { t: t, pres: pres, real: real, pct: pres ? Math.round(real / pres * 100) : 0 };
-  }).sort((a, b) => b.pct - a.pct);
+    const medible = pres > 0 && real > 0;
+    return { t: t, pres: pres, real: real, pct: medible ? Math.round(real / pres * 100) : null };
+  }).sort((a, b) => (b.pct === null ? -1 : b.pct) - (a.pct === null ? -1 : a.pct));
 
   const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
   setTxt('efTrabajosLabel', filas.length ? '— ' + filas.length + ' con horas presupuestadas' : '');
   elT.innerHTML = filas.length ? filas.map(f => {
-    const col = colorEficiencia(f.pct);
+    const col = f.pct === null ? 'var(--text-dim)' : colorEficiencia(f.pct);
     return '<div class="bar-item">' +
       '<span class="bar-item-label cliente" title="' + esc(f.t.titulo) + '">' +
         (ordenDe(f.t) ? '<span style="color:var(--accent);font-weight:800">OT ' + esc(ordenDe(f.t)) + '</span> ' : '') +
         esc(f.t.titulo) + '</span>' +
-      '<div class="bar-track"><div class="bar-fill" style="width:' + Math.min(100, f.pct) + '%;background:' + col + '"></div></div>' +
-      '<span class="bar-val" style="color:' + col + '">' + f.pct + '%</span>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + (f.pct === null ? 0 : Math.min(100, f.pct)) + '%;background:' + col + '"></div></div>' +
+      '<span class="bar-val" style="color:' + col + '">' + (f.pct === null ? '—' : f.pct + '%') + '</span>' +
       '<span class="bar-val" style="width:74px">' + fmtHoras(f.real) + '/' + fmtHoras(f.pres) + '</span>' +
       '</div>';
   }).join('') : '<div style="color:var(--text-dim);font-size:12px">Todavía no hay trabajos con horas presupuestadas</div>';
@@ -5366,4 +5367,36 @@ if (TV_MODE) {
 
   // Arrancar en la semana actual y rotar
   tvShow(TV_VIEWS[0]);
-  setInterval(t
+  setInterval(tvNext, TV_ROTATE_MS);
+
+  // Recarga de datos periódica
+  setInterval(() => {
+    loadedRanges.clear();
+    tasks = [];
+    if (currentTab === 'analytics') renderAnalytics();
+    else render();
+  }, TV_REFRESH_MS);
+}
+
+// ── SERVICE WORKER — registro con auto-actualización ──
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function() {
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+      .then(function(reg) {
+        // Chequear actualizaciones cada 30 min (clave para el tele siempre prendido)
+        setInterval(function() { reg.update().catch(function(){}); }, 30 * 60 * 1000);
+      })
+      .catch(function(){});
+
+    // Cuando se activa un service worker nuevo, recargar UNA vez para tomar la versión fresca
+    var reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function() {
+      if (reloaded) return;
+      reloaded = true;
+      location.reload();
+    });
+  });
+}
+</script>
+</body>
+</html>
