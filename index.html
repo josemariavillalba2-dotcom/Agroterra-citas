@@ -1486,6 +1486,18 @@
     border-radius: 50%; background: #ef4444; color: #fff;
     font-size: 11px; font-weight: 800; line-height: 16px; text-align: center; cursor: pointer;
   }
+  .fotos-strip .fdoc {
+    display: inline-flex; align-items: center; gap: 7px;
+    max-width: 260px; height: 54px; padding: 0 11px 0 9px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface2); position: relative;
+  }
+  .fdoc-ico { font-size: 17px; line-height: 1; }
+  .fdoc-name {
+    font-size: 11px; font-weight: 700; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;
+  }
+  .fdoc-kb { font-size: 9.5px; color: var(--text-dim); white-space: nowrap; }
   .rec-empty { color: var(--text-dim); font-size: 11px; padding: 8px 2px; }
   .form-row textarea {
     width: 100%; background: var(--surface2);
@@ -1724,9 +1736,13 @@
     </div>
 
     <div class="form-row">
-      <label>Captura de la aprobación</label>
+      <label>Respaldo de la aprobación</label>
       <input type="file" id="aFotoInput" accept="image/*" multiple style="display:none">
-      <button class="caso-btn" style="flex:0 0 auto;min-width:180px" onclick="document.getElementById('aFotoInput').click()">📎 Adjuntar captura</button>
+      <input type="file" id="aDocInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.msg,.eml,application/pdf" multiple style="display:none">
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <button class="caso-btn" style="flex:0 0 auto;min-width:160px" onclick="document.getElementById('aFotoInput').click()">📷 Captura de pantalla</button>
+        <button class="caso-btn" style="flex:0 0 auto;min-width:160px" onclick="document.getElementById('aDocInput').click()">📄 PDF / Word / Excel</button>
+      </div>
       <div class="fotos-strip" id="aFotos"></div>
       <div id="aAviso" style="font-size:10.5px;color:var(--text-dim);margin-top:6px">Queda registrada como respaldo para auditoría.</div>
     </div>
@@ -4410,8 +4426,22 @@ function fotoIds(c) { return String(c.fotos || '').split(',').map(s=>s.trim()).f
 function comprobIds(c) { return String(c.comprobantes || '').split(',').map(s=>s.trim()).filter(Boolean); }
 const MEDIOS_APROB = { WHATSAPP:'WhatsApp', CORREO:'Correo', TELEFONO:'Teléfono', PRESENCIAL:'Presencial / firmado' };
 function thumbLink(id) {
+  // Si el adjunto no es imagen la miniatura de Drive falla; ahí se muestra
+  // como archivo con su ícono.
   return '<a href="https://drive.google.com/file/d/' + id + '/view" target="_blank" rel="noopener"' +
-    ' style="background-image:url(https://drive.google.com/thumbnail?id=' + id + '&sz=w200)" title="Abrir captura"></a>';
+    ' style="background-image:url(https://drive.google.com/thumbnail?id=' + id + '&sz=w200)"' +
+    ' title="Abrir adjunto"><img src="https://drive.google.com/thumbnail?id=' + id +
+    '&sz=w200" alt="" style="display:none" onerror="marcarNoImagen(this)"></a>';
+}
+function marcarNoImagen(img) {
+  const a = img.parentNode;
+  if (!a) return;
+  a.style.backgroundImage = 'none';
+  a.style.display = 'grid';
+  a.style.placeItems = 'center';
+  a.style.fontSize = '20px';
+  a.textContent = '📄';
+  a.title = 'Abrir archivo adjunto';
 }
 
 // ── CASOS SIN CONFIRMAR ──
@@ -4866,10 +4896,12 @@ function marcarEnviado(c) {
 
 let aprobandoId = null;
 let aprobFotos = [];
+let aprobDocs = [];
 
 function aprobarCaso(c) {
   aprobandoId = c.id;
   aprobFotos = [];
+  aprobDocs = [];
   document.getElementById('aQuien').value = c.contacto || '';
   document.getElementById('aMedio').value = c.origen === 'CORREO' ? 'CORREO' : 'WHATSAPP';
   document.getElementById('aComent').value = '';
@@ -4880,23 +4912,50 @@ function aprobarCaso(c) {
 function closeAprob() {
   aprobandoId = null;
   aprobFotos = [];
+  aprobDocs = [];
   document.getElementById('aprobOverlay').classList.remove('open');
 }
 function renderAprobFotos() {
-  document.getElementById('aFotos').innerHTML = aprobFotos.map((f,i) =>
-    '<span class="fthumb" style="background-image:url(' + f.data + ')"><span class="x" data-i="' + i + '">×</span></span>'
-  ).join('');
+  document.getElementById('aFotos').innerHTML =
+    aprobFotos.map((f,i) =>
+      '<span class="fthumb" style="background-image:url(' + f.data + ')"><span class="x" data-i="' + i + '">×</span></span>'
+    ).join('') +
+    aprobDocs.map((f,i) =>
+      '<span class="fdoc" title="' + esc(f.nombre) + '">' +
+        '<span class="fdoc-ico">' + iconoArchivo(f.nombre) + '</span>' +
+        '<span class="fdoc-name">' + esc(f.nombre) + '</span>' +
+        '<span class="fdoc-kb">' + pesoKb(f.data) + '</span>' +
+        '<span class="x" data-doc="' + i + '">×</span>' +
+      '</span>'
+    ).join('');
+
   document.querySelectorAll('#aFotos .x').forEach(el => {
     el.addEventListener('click', ev => {
       ev.stopPropagation();
-      aprobFotos.splice(parseInt(el.dataset.i,10), 1);
+      if (el.dataset.doc !== undefined) aprobDocs.splice(parseInt(el.dataset.doc,10), 1);
+      else aprobFotos.splice(parseInt(el.dataset.i,10), 1);
       renderAprobFotos();
     });
   });
-  const av = document.getElementById('aAviso');
-  av.textContent = aprobFotos.length
-    ? aprobFotos.length + ' captura(s) listas para adjuntar.'
-    : 'Queda registrada como respaldo para auditoría.';
+
+  const n = aprobFotos.length + aprobDocs.length;
+  document.getElementById('aAviso').textContent = n
+    ? n + ' archivo(s) listos para adjuntar.'
+    : 'Sirve una captura de WhatsApp, el presupuesto firmado en PDF o el correo de conformidad.';
+}
+
+// Tipo de archivo por extensión — sólo para el ícono de la lista
+function iconoArchivo(nombre) {
+  const e = String(nombre).split('.').pop().toLowerCase();
+  if (e === 'pdf') return '📕';
+  if (e === 'doc' || e === 'docx') return '📘';
+  if (e === 'xls' || e === 'xlsx') return '📗';
+  if (e === 'msg' || e === 'eml') return '✉️';
+  return '📄';
+}
+function pesoKb(dataUrl) {
+  const b64 = String(dataUrl).split(',')[1] || '';
+  return Math.round(b64.length * 0.75 / 1024) + ' KB';
 }
 async function confirmAprob() {
   const c = casos.find(x => String(x.id)===String(aprobandoId));
@@ -4904,9 +4963,9 @@ async function confirmAprob() {
   const quien  = document.getElementById('aQuien').value.trim();
   const medio  = document.getElementById('aMedio').value;
   const coment = document.getElementById('aComent').value.trim();
-  if (!aprobFotos.length &&
-      !confirm('No adjuntaste ninguna captura de la aprobación.\n\n¿Registrar igual? Sin respaldo no queda constancia para auditoría.')) return;
-  const fotos = aprobFotos.slice();
+  if (!aprobFotos.length && !aprobDocs.length &&
+      !confirm('No adjuntaste ningún respaldo de la aprobación.\n\n¿Registrar igual? Sin respaldo no queda constancia para auditoría.')) return;
+  const fotos = aprobFotos.concat(aprobDocs);
   const id = c.id;
   closeAprob();
   await cambiarEstadoCaso(c, 'APROBADO', {
@@ -4990,6 +5049,20 @@ async function pasarATaller(c) {
   delete pasandoATaller[c.id];
 }
 
+// Documentos (PDF, Word, Excel, correo): se suben tal cual, sin procesar
+function leerArchivo(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({
+      nombre: file.name,
+      data: reader.result,
+      mime: file.type || 'application/octet-stream'
+    });
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
 // Fotos: se achican en el equipo y se suben a la carpeta de Drive
 function achicarImagen(file, max) {
   return new Promise(resolve => {
@@ -5013,14 +5086,14 @@ function achicarImagen(file, max) {
 
 async function subirFotos(casoId, fotos, campo) {
   if (!API_URL || API_URL.startsWith('TU_')) return;
-  showLoading('Subiendo fotos…');
+  showLoading('Subiendo ' + fotos.length + ' archivo(s)…');
   try {
     for (const f of fotos) {
       await fetch(API_URL, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action:'addFotoCaso', id:casoId, campo:(campo || 'fotos'), nombre:f.nombre, data:f.data.split(',')[1] })
+        body: JSON.stringify({ action:'addFotoCaso', id:casoId, campo:(campo || 'fotos'), nombre:f.nombre, mime:(f.mime || 'image/jpeg'), data:f.data.split(',')[1] })
       });
     }
   } catch(e) { console.warn('subirFotos:', e.message); }
@@ -5044,6 +5117,19 @@ document.getElementById('aFotoInput').addEventListener('change', async function(
   for (const f of files) {
     const r = await achicarImagen(f, 1600);
     if (r) aprobFotos.push(r);
+  }
+  renderAprobFotos();
+});
+document.getElementById('aDocInput').addEventListener('change', async function() {
+  const files = Array.from(this.files || []);
+  this.value = '';
+  for (const f of files) {
+    if (f.size > 8 * 1024 * 1024) {
+      alert('"' + f.name + '" pesa ' + Math.round(f.size/1024/1024) + ' MB.\n\nEl límite por archivo es 8 MB.');
+      continue;
+    }
+    const r = await leerArchivo(f);
+    if (r) aprobDocs.push(r);
   }
   renderAprobFotos();
 });
