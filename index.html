@@ -297,6 +297,11 @@
     font-size: 10.5px; color: var(--text-dim); flex-wrap: wrap;
   }
   .trabajo-nota { color: var(--accent); }
+  .tc-pill.tc-sinot {
+    color: #facc15; border-color: #facc15; cursor: pointer;
+  }
+  .tc-pill.tc-sinot:hover { background: rgba(250,204,21,.14); }
+  .tc-pill.tc-sinot.on { background: #facc15; color: #0f1117; font-weight: 800; }
   .trabajo-ot {
     display: inline-block; margin-top: 6px;
     font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 800; letter-spacing: .06em;
@@ -3468,6 +3473,13 @@ async function loadRangoEficiencia() {
 // ── CIERRE POR ORDEN DE TRABAJO ──
 // El N° de orden de Autológica es la unidad de análisis: agrupa los trabajos
 // que comparten orden, sus horas presupuestadas y qué técnico puso cada hora.
+// Trabajos sin N° de orden: los creados antes del flujo actual. Quedan fuera
+// del análisis por orden y se cuentan aparte para poder cerrarlos.
+function trabajosSinOrden() {
+  return trabajos.filter(t => !ordenDe(t) &&
+    t.estado !== 'TERMINADO' && t.estado !== 'ENTREGADO');
+}
+
 function ordenesConsolidadas() {
   const mapa = {};
   trabajos.forEach(t => {
@@ -3524,7 +3536,11 @@ function renderCierreOrdenes() {
   if (!ordenes.length) {
     wrap.innerHTML = '<div style="color:var(--text-dim);font-size:12px">' +
       'Todavía no hay trabajos con N° de orden. Se carga al pasar un caso a taller, ' +
-      'o desde el trabajo en la solapa Taller.</div>';
+      'al agendar un trabajo, o desde el trabajo en la solapa Taller.' +
+      (trabajosSinOrden().length
+        ? '<br><strong style="color:#facc15">' + trabajosSinOrden().length + ' trabajo(s) activos sin orden</strong> ' +
+          'esperando que se les asigne una.' : '') +
+      '</div>';
     return;
   }
 
@@ -3569,7 +3585,13 @@ function renderCierreOrdenes() {
     '<div class="dispo-nota">Sólo cuentan las citas ya ocurridas y se descuentan los refrigerios. ' +
     'Una orden sin horas cumplidas no computa resultado (—). ' +
     'El desvío en verde es trabajo hecho en menos horas de las presupuestadas; el acumulado del título ' +
-    'separa las órdenes cerradas de las que siguen en curso.</div>';
+    'separa las órdenes cerradas de las que siguen en curso.' +
+    (trabajosSinOrden().length
+      ? '<br><strong style="color:#facc15">' + trabajosSinOrden().length + ' trabajo(s) activos sin N° de orden</strong> ' +
+        'quedan fuera de este análisis (creados antes del flujo actual). ' +
+        'Al agendarlos se pide la orden; también se puede cargar desde el trabajo en Taller.'
+      : '') +
+    '</div>';
 }
 
 function renderEficiencia() {
@@ -4230,6 +4252,8 @@ const ESTADOS_TRABAJO = [
 let trabajos = [];
 let trabajosLoaded = false;
 let editingTrabajoId = null;
+let soloSinOrden = false;
+function toggleSoloSinOrden() { soloSinOrden = !soloSinOrden; renderTaller(); }
 let verFinalizados = false;
 
 function toggleFinalizados() {
@@ -4315,10 +4339,24 @@ function renderTaller() {
     return `<span class="tc-pill" style="color:${e.color};border-color:${e.color}">${e.label}: ${n}</span>`;
   }).join('');
 
+  // Los trabajos viejos sin orden se pueden aislar para terminar de cerrarlos
+  const nSinOT = trabajosSinOrden().length;
+  if (nSinOT) {
+    counters.innerHTML += '<span class="tc-pill tc-sinot' + (soloSinOrden ? ' on' : '') +
+      '" onclick="toggleSoloSinOrden()" title="Trabajos creados antes del flujo actual: ' +
+      'no entran en el análisis por orden">Sin N° de orden: ' + nSinOT + '</span>';
+  }
+
   // Orden: activos primero (por estado), terminados al final
   const orden = {};
   ESTADOS_TRABAJO.forEach((e,i) => orden[e.id] = e.id==='TERMINADO' ? 99 : i);
-  const sorted = trabajos.slice().sort((a,b) => (orden[a.estado]||0) - (orden[b.estado]||0));
+  let base = trabajos.slice();
+  if (soloSinOrden) {
+    const ids = {};
+    trabajosSinOrden().forEach(t => { ids[String(t.id)] = true; });
+    base = base.filter(t => ids[String(t.id)]);
+  }
+  const sorted = base.sort((a,b) => (orden[a.estado]||0) - (orden[b.estado]||0));
 
   // Botón de finalizados: mostrar cuántos hay
   const nFin = trabajos.filter(t => t.estado==='TERMINADO').length;
@@ -4525,7 +4563,31 @@ async function deleteTrabajo() {
 }
 
 // Agendar: pasar del pizarrón al tablero de citas con todo precargado
-function agendarTrabajo(t) {
+async function agendarTrabajo(t) {
+  // Un trabajo que se agenda entra a medición: sin N° de orden no hay con qué
+  // comparar las horas. Los trabajos viejos se completan acá, al activarlos.
+  if (!ordenDe(t)) {
+    const ot = prompt(
+      'N° de orden de Autológica para este trabajo\n' +
+      '(' + (t.titulo || '') + ')\n\n' +
+      'Se usa para medir la eficiencia. Dejalo vacío si todavía no tiene orden.',
+      '');
+    if (ot === null) return;
+    if (ot.trim()) {
+      t.ordenNro = ot.trim();
+      let hp = t.horasPresup;
+      if (!hp) {
+        const r = prompt('Horas presupuestadas para la OT ' + t.ordenNro + ' (opcional):', '');
+        if (r && r.trim()) { hp = r.trim(); t.horasPresup = hp; }
+      }
+      renderTaller();
+      try {
+        await jsonpRequest({ action:'updateTrabajo', id:t.id, division:t.division,
+          titulo:t.titulo, descripcion:t.descripcion, estado:t.estado, nota:t.nota,
+          tecnico:t.tecnico, unidad:t.unidad, ordenNro:t.ordenNro, horasPresup:hp || '' });
+      } catch(e) { console.warn('updateTrabajo (OT al agendar):', e.message); }
+    }
+  }
   switchTab('tablero');
   selectedTipo = t.division==='INTERNO' ? 'I' : 'S';
   const tl = techList(t);
