@@ -1863,6 +1863,14 @@
       </div>
     </div>
     <div class="form-row">
+      <label>Horas reales (ajuste manual) <span style="color:var(--text-dim);font-weight:400">— opcional, pisa el cálculo automático por citas</span></label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="tHorasReal" placeholder="Ej: 16" style="flex:1">
+        <button type="button" class="btn-cancel" style="padding:9px 12px;white-space:nowrap" onclick="limpiarHorasRealManual()">Usar automático</button>
+      </div>
+      <div id="tHorasRealHint" style="color:var(--text-dim);font-size:11px;margin-top:4px"></div>
+    </div>
+    <div class="form-row">
       <label>Cliente</label>
       <input type="text" id="tTitulo" placeholder="Ej: FINLAR, HECTOR Y JULIO DÍAZ">
     </div>
@@ -3485,16 +3493,15 @@ function ordenesConsolidadas() {
   trabajos.forEach(t => {
     const ot = ordenDe(t);
     if (!ot) return;
-    if (!mapa[ot]) mapa[ot] = { ot: ot, trabajos: [], pres: 0, real: 0, porTech: {}, estados: [] };
+    if (!mapa[ot]) mapa[ot] = { ot: ot, trabajos: [], pres: 0, real: 0, porTech: {}, estados: [], tieneManual: false };
     const g = mapa[ot];
     g.trabajos.push(t);
     g.pres += horasPresupTrabajo(t);
     g.estados.push(t.estado);
-    citasCumplidas(t.id).forEach(x => {
-      const hs = taskHours(x);
-      g.real += hs;
-      g.porTech[x.tech] = (g.porTech[x.tech] || 0) + hs;
-    });
+    if (tieneHorasManual(t)) g.tieneManual = true;
+    const hp = horasPorTecnico(t);
+    g.real += hp.total;
+    Object.keys(hp.porTech).forEach(id => { g.porTech[id] = (g.porTech[id] || 0) + hp.porTech[id]; });
   });
   return Object.keys(mapa).map(k => {
     const g = mapa[k];
@@ -3571,7 +3578,8 @@ function renderCierreOrdenes() {
         '<td style="text-align:left">' + esc(o.titulo) +
           (o.unidad ? '<span class="ot-unidad">' + esc(o.unidad) + '</span>' : '') + '</td>' +
         '<td>' + (o.pres ? fmtHoras(o.pres) : '—') + '</td>' +
-        '<td>' + fmtHoras(o.real) + '</td>' +
+        '<td>' + fmtHoras(o.real) + (o.tieneManual
+          ? ' <span title="Incluye horas cargadas a mano al cerrar un trabajo de esta orden">✍</span>' : '') + '</td>' +
         '<td style="color:' + col + '">' +
           (o.desvio === null ? '—' : (o.desvio >= 0 ? '+' : '') + fmtHoras(o.desvio)) + '</td>' +
         '<td><div class="dispo-bar"><div class="dispo-fill" style="width:' +
@@ -3585,7 +3593,10 @@ function renderCierreOrdenes() {
     '<div class="dispo-nota">Sólo cuentan las citas ya ocurridas y se descuentan los refrigerios. ' +
     'Una orden sin horas cumplidas no computa resultado (—). ' +
     'El desvío en verde es trabajo hecho en menos horas de las presupuestadas; el acumulado del título ' +
-    'separa las órdenes cerradas de las que siguen en curso.' +
+    'separa las órdenes cerradas de las que siguen en curso. ' +
+    '<span title="Incluye horas cargadas a mano al cerrar un trabajo de esta orden">✍</span> = ' +
+    'esa orden tiene al menos un trabajo cerrado con horas reales cargadas a mano, en vez del cálculo ' +
+    'automático por citas (útil cuando el cierre administrativo se demora).' +
     (trabajosSinOrden().length
       ? '<br><strong style="color:#facc15">' + trabajosSinOrden().length + ' trabajo(s) activos sin N° de orden</strong> ' +
         'quedan fuera de este análisis (creados antes del flujo actual). ' +
@@ -3602,7 +3613,7 @@ function renderEficiencia() {
 
   const filas = conPresup.map(t => {
     const pres = horasPresupTrabajo(t);
-    const real = horasRealTrabajo(t.id);
+    const real = horasRealEfectivas(t);
     const medible = pres > 0 && real > 0;
     return { t: t, pres: pres, real: real, pct: medible ? Math.round(real / pres * 100) : null };
   }).sort((a, b) => (b.pct === null ? -1 : b.pct) - (a.pct === null ? -1 : a.pct));
@@ -3627,15 +3638,13 @@ function renderEficiencia() {
   TECNICOS.forEach(x => { acum[x.id] = { pres: 0, real: 0 }; });
   conPresup.forEach(t => {
     const pres = horasPresupTrabajo(t);
-    const citas = citasCumplidas(t.id);
-    const total = citas.reduce((a, x) => a + taskHours(x), 0);
+    const hp = horasPorTecnico(t);
+    const total = hp.total;
     if (!total) return;
-    const porTech = {};
-    citas.forEach(x => { porTech[x.tech] = (porTech[x.tech] || 0) + taskHours(x); });
-    Object.keys(porTech).forEach(id => {
+    Object.keys(hp.porTech).forEach(id => {
       if (!acum[id]) acum[id] = { pres: 0, real: 0 };
-      acum[id].real += porTech[id];
-      acum[id].pres += pres * (porTech[id] / total);
+      acum[id].real += hp.porTech[id];
+      acum[id].pres += pres * (hp.porTech[id] / total);
     });
   });
 
@@ -3830,6 +3839,45 @@ function citasAgendadas(id) {
 function horasRealTrabajo(id) {
   return citasCumplidas(id).reduce((a, x) => a + taskHours(x), 0);
 }
+// Si el trabajo tiene "0" o "" no cuenta como corrección manual; sólo cuenta
+// cuando el campo fue completado (aunque sea con 0, para poder anular horas).
+function tieneHorasManual(t) {
+  return !!t && t.horasRealManual !== undefined && t.horasRealManual !== null && t.horasRealManual !== '';
+}
+// Horas reales de un trabajo, y cómo se reparten entre los técnicos que
+// participaron. Si se cargó una corrección manual al cerrar (porque el cierre
+// administrativo se demoró y las citas cumplidas siguieron sumando tiempo que
+// no era del trabajo), esa corrección manda como total; se reparte entre los
+// técnicos manteniendo la proporción que marcan sus citas y, si no hay citas
+// para prorratear, por partes iguales entre los técnicos asignados.
+function horasPorTecnico(t) {
+  const auto = {};
+  let totalAuto = 0;
+  citasCumplidas(t.id).forEach(x => {
+    const hs = taskHours(x);
+    auto[x.tech] = (auto[x.tech] || 0) + hs;
+    totalAuto += hs;
+  });
+  if (!tieneHorasManual(t)) return { total: totalAuto, porTech: auto };
+
+  const total = numHoras(t.horasRealManual);
+  if (totalAuto > 0) {
+    const factor = total / totalAuto;
+    const porTech = {};
+    Object.keys(auto).forEach(id => { porTech[id] = auto[id] * factor; });
+    return { total: total, porTech: porTech };
+  }
+  const techs = techList(t);
+  const porTech = {};
+  if (techs.length) {
+    const cada = total / techs.length;
+    techs.forEach(id => { porTech[id] = cada; });
+  }
+  return { total: total, porTech: porTech };
+}
+function horasRealEfectivas(t) {
+  return horasPorTecnico(t).total;
+}
 function horasAgendadasTrabajo(id) {
   return citasAgendadas(id).reduce((a, x) => a + taskHours(x), 0);
 }
@@ -3841,16 +3889,17 @@ function colorEficiencia(pct) {
 }
 function barraHoras(t) {
   const pres = horasPresupTrabajo(t);
-  const real = horasRealTrabajo(t.id);
+  const real = horasRealEfectivas(t);
+  const marca = tieneHorasManual(t) ? ' <span title="Horas cargadas a mano al cerrar el trabajo">\u270d</span>' : '';
   const prox = horasAgendadasTrabajo(t.id);
   if (!pres && !real && !prox) return '';
   const agenda = prox ? ' \u00b7 +' + fmtHoras(prox) + ' agendadas' : '';
-  if (!pres) return '<div class="hrs-row"><span class="hrs-txt">\u23F1 ' + fmtHoras(real) + ' usadas' + agenda + ' \u00b7 sin horas presupuestadas</span></div>';
+  if (!pres) return '<div class="hrs-row"><span class="hrs-txt">\u23F1 ' + fmtHoras(real) + ' usadas' + marca + agenda + ' \u00b7 sin horas presupuestadas</span></div>';
   const pct = Math.round(real / pres * 100);
   const col = colorEficiencia(pct);
   return '<div class="hrs-row">' +
     '<div class="hrs-bar"><div class="hrs-fill" style="width:' + Math.min(100, pct) + '%;background:' + col + '"></div></div>' +
-    '<span class="hrs-txt" style="color:' + col + '">' + fmtHoras(real) + ' / ' + fmtHoras(pres) + ' \u00b7 ' + pct + '%</span>' +
+    '<span class="hrs-txt" style="color:' + col + '">' + fmtHoras(real) + marca + ' / ' + fmtHoras(pres) + ' \u00b7 ' + pct + '%</span>' +
     (prox ? '<span class="hrs-txt">+' + fmtHoras(prox) + ' agendadas</span>' : '') +
     '</div>';
 }
@@ -4261,18 +4310,44 @@ function toggleFinalizados() {
   renderTaller();
 }
 
+// Al finalizar se pide confirmar (o ajustar) las horas reales del trabajo.
+// Por defecto se sugiere lo que marcan las citas cumplidas, pero se puede
+// cambiar: si el cierre administrativo se demora, siguen entrando citas que
+// no son parte del trabajo real y ese número deja de servir. Dejar el campo
+// vacío usa siempre el cálculo automático (aunque siga sumando después).
 async function finalizarTrabajo(t) {
-  if (!confirm(`✔ ¿Finalizar el trabajo de ${t.titulo}?\nSe registrará en el historial y saldrá del pizarrón.`)) return;
+  const auto = horasRealTrabajo(t.id);
+  const previo = tieneHorasManual(t) ? numHoras(t.horasRealManual) : auto;
+  const sugerido = (Math.round(previo * 10) / 10).toString().replace('.', ',');
+  const resp = prompt(
+    '✔ Finalizar el trabajo de ' + t.titulo + '\n\n' +
+    'Horas reales del trabajo (cálculo automático por citas cumplidas: ' + fmtHoras(auto) + ').\n' +
+    'Ajustalas si el cierre se demoró y siguieron corriendo citas que ya no son parte de este trabajo.\n' +
+    'Dejar vacío = seguir usando siempre el cálculo automático.',
+    sugerido
+  );
+  if (resp === null) return; // canceló, no finaliza
+
+  const horasTxt = resp.trim().replace(',', '.');
+  if (horasTxt !== '' && (isNaN(parseFloat(horasTxt)) || parseFloat(horasTxt) < 0)) {
+    alert('Ingresá un número de horas válido, o dejalo vacío para usar el cálculo automático.');
+    return;
+  }
+
   t.estado = 'TERMINADO';
+  t.horasRealManual = horasTxt === '' ? '' : numHoras(horasTxt);
   if (!t.historial) t.historial = [];
-  const txt = '✔ Trabajo finalizado';
+  const txt = '✔ Trabajo finalizado' + (tieneHorasManual(t)
+    ? ' — ' + fmtHoras(numHoras(t.horasRealManual)) + ' reales (carga manual)'
+    : '');
   t.historial.push({ ts: new Date().toISOString(), txt: txt, auto: true });
   renderTaller();
   try {
     await jsonpRequest({
       action:'updateTrabajo', id: t.id,
       division: t.division, titulo: t.titulo, unidad: t.unidad || '', descripcion: t.descripcion || '',
-      estado: 'TERMINADO', nota: t.nota || '', tecnico: t.tecnico || ''
+      estado: 'TERMINADO', nota: t.nota || '', tecnico: t.tecnico || '',
+      horasRealManual: t.horasRealManual
     });
     await jsonpRequest({ action:'addHistorial', id: t.id, texto: txt, auto: '1' });
   } catch(e) { console.warn('finalizarTrabajo:', e.message); }
@@ -4430,6 +4505,8 @@ function openTrabajoModal(t) {
     `<option value="${e.id}" ${t&&t.estado===e.id?'selected':''}>${e.label}</option>`).join('');
   document.getElementById('tOrden').value = t ? (t.ordenNro||'') : '';
   document.getElementById('tHorasPresup').value = t ? (t.horasPresup||'') : '';
+  document.getElementById('tHorasReal').value = (t && t.horasRealManual !== undefined && t.horasRealManual !== null) ? t.horasRealManual : '';
+  actualizarHintHorasReal(t);
   document.getElementById('tTitulo').value = t ? (t.titulo||'') : '';
   document.getElementById('tUnidad').value = t ? (t.unidad||'') : '';
   document.getElementById('tDesc').value = t ? (t.descripcion||'') : '';
@@ -4440,6 +4517,19 @@ function openTrabajoModal(t) {
   document.getElementById('histInput').value = '';
   document.getElementById('trabajoOverlay').classList.add('open');
   document.querySelector('#trabajoOverlay .modal').scrollTop = 0;
+}
+
+// Hint del campo de horas manuales: muestra el cálculo automático de referencia.
+function actualizarHintHorasReal(t) {
+  const el = document.getElementById('tHorasRealHint');
+  if (!el) return;
+  if (!t) { el.textContent = 'Se puede cargar una vez guardado el trabajo.'; return; }
+  const auto = horasRealTrabajo(t.id);
+  el.textContent = 'Cálculo automático por citas cumplidas: ' + fmtHoras(auto) +
+    (tieneHorasManual(t) ? ' · actualmente usando el valor cargado a mano' : '');
+}
+function limpiarHorasRealManual() {
+  document.getElementById('tHorasReal').value = '';
 }
 
 function fmtTs(iso) {
@@ -4513,8 +4603,14 @@ async function saveTrabajo() {
     tecnico:     Array.from(pickedTechs).join(','),
     ordenNro:    document.getElementById('tOrden').value.trim(),
     horasPresup: document.getElementById('tHorasPresup').value.trim(),
+    horasRealManual: document.getElementById('tHorasReal').value.trim(),
   };
   if (!data.titulo) { alert('Completá el cliente'); return; }
+  if (data.horasRealManual !== '' && isNaN(parseFloat(data.horasRealManual.replace(',', '.')))) {
+    alert('Las horas reales (ajuste manual) tienen que ser un número, o dejalo vacío para usar el cálculo automático.');
+    return;
+  }
+  if (data.horasRealManual !== '') data.horasRealManual = numHoras(data.horasRealManual);
 
   if (editingTrabajoId) {
     const t = trabajos.find(x => x.id===editingTrabajoId);
