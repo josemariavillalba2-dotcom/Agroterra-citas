@@ -5556,5 +5556,555 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>
+  
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     TARJETAS HORARIAS — bloque único autoinstalable.
+     Pegar TODO esto justo ANTES de </body>. No requiere tocar nada más.
+     ═══════════════════════════════════════════════════════════════════ -->
+<style>
+  /* ── TARJETAS HORARIAS ── */
+  .horarios-panel{display:none;padding:16px;max-width:1400px;margin:0 auto}
+  .horarios-panel.visible{display:block}
+  .th-subtabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:16px}
+  .th-subtab{padding:9px 18px;font-weight:700;font-size:12.5px;color:var(--text-dim);cursor:pointer;
+    border-bottom:2px solid transparent;user-select:none}
+  .th-subtab:hover{color:var(--text)}
+  .th-subtab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .th-view{display:none}
+  .th-view.active{display:block}
+
+  .th-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .th-daynav{display:flex;align-items:center;gap:8px;background:var(--surface2);
+    border:1px solid var(--border);border-radius:var(--radius);padding:5px 10px}
+  .th-daynav button{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:16px;padding:2px 4px}
+  .th-daynav button:hover{color:var(--accent)}
+  .th-daynav span{font-size:12.5px;color:var(--text);white-space:nowrap;min-width:170px;text-align:center;text-transform:capitalize}
+  .th-tech-select,.th-mes-select{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);
+    color:var(--text);padding:8px 12px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600}
+  .th-verif{margin-left:auto;display:flex;align-items:center;gap:16px;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:9px 16px}
+  .th-verif-item{display:flex;flex-direction:column;gap:1px}
+  .th-verif-label{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em}
+  .th-verif-val{font-size:16px;font-weight:800;line-height:1}
+  .th-verif-sep{width:1px;height:28px;background:var(--border)}
+  .th-verif-estado{font-size:12px;font-weight:800;padding:5px 12px;border-radius:20px;white-space:nowrap}
+  .th-verif-estado.ok{background:rgba(34,197,94,.15);color:#22c55e;border:1px solid #22c55e}
+  .th-verif-estado.bad{background:rgba(239,68,68,.12);color:#ef4444;border:1px solid #ef4444}
+  .th-cols{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+  @media(max-width:900px){.th-cols{grid-template-columns:1fr}}
+  .th-panel-b{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+  .th-panel-title{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--accent2);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+  .thfr-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .thfr-table th{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+    color:var(--text-dim);text-align:left;padding:6px 6px;border-bottom:1px solid var(--border)}
+  .thfr-table td{padding:5px 6px;border-bottom:1px solid rgba(42,48,72,.4);vertical-align:middle}
+  .thfr-table tr.warn-row td{background:rgba(250,204,21,.05)}
+  .thfr-table tr.extra-row td{background:rgba(245,166,35,.05)}
+  .thfr-table tr.solap-row td{background:rgba(239,68,68,.12);box-shadow:inset 2px 0 0 #ef4444}
+  .thfr-input{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);
+    color:var(--text);padding:6px 7px;font-family:'Inter',sans-serif;font-size:12px;width:100%}
+  .thfr-input:focus{outline:none;border-color:var(--accent)}
+  .thfr-input.time{width:78px}
+  select.thfr-input{-webkit-appearance:none;cursor:pointer}
+  .thfr-hrs{font-weight:800;color:var(--accent2);font-size:12px;white-space:nowrap;text-align:right}
+  .thfr-cat{min-width:130px}.thfr-ot{min-width:110px}
+  .thfr-del{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:15px;padding:2px 5px}
+  .thfr-del:hover{color:#ef4444}
+  .thfr-warn-ico{color:#facc15;font-size:13px;cursor:help}
+  .thfr-solap-ico{color:#ef4444;font-size:13px;cursor:help;margin-left:4px}
+  .thfr-extra-tag{font-size:8.5px;font-weight:800;padding:1px 5px;border-radius:3px;margin-left:4px;white-space:nowrap}
+  .thfr-extra-tag.simple{background:rgba(245,166,35,.2);color:var(--accent)}
+  .thfr-extra-tag.doble{background:rgba(239,68,68,.2);color:#ef4444}
+  .btn-addfranja{background:transparent;border:1px dashed var(--border);border-radius:var(--radius-sm);
+    color:var(--accent2);padding:8px 14px;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;
+    cursor:pointer;width:100%;margin-top:10px}
+  .btn-addfranja:hover{border-color:var(--accent2)}
+  .th-solap-banner{background:rgba(239,68,68,.14);border:1px solid #ef4444;border-radius:var(--radius-sm);
+    color:#fca5a5;font-size:12px;font-weight:700;padding:9px 12px;margin-top:10px;display:none;align-items:center;gap:8px}
+  .th-solap-banner.show{display:flex}
+  .th-hueco-banner{background:rgba(250,204,21,.12);border:1px solid #facc15;border-radius:var(--radius-sm);
+    color:#fde68a;font-size:12px;font-weight:700;padding:9px 12px;margin-top:10px;display:none;align-items:center;gap:8px}
+  .th-hueco-banner.show{display:flex}
+  .th-disp-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:10px}
+  .th-disp-row label{font-size:12px;color:var(--text-dim)}
+  .th-disp-row input{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);
+    color:var(--text);padding:6px 8px;font-family:'Inter',sans-serif;font-size:13px;width:80px;text-align:right}
+  .th-disp-row input:focus{outline:none;border-color:var(--accent)}
+  .th-disp-total{border-top:1px solid var(--border);margin-top:8px;padding-top:10px}
+  .th-disp-total .th-disp-row label{color:var(--text);font-weight:800;font-size:13px}
+  .th-disp-total .th-disp-row span{font-weight:800;font-size:15px;color:var(--text)}
+  .th-extras-box{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+  .th-extras-line{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
+  .th-extras-line .lbl{color:var(--text-dim)}
+  .th-cat-bar{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:11.5px}
+  .th-cat-sigla{width:38px;font-weight:800;color:var(--text-dim);flex-shrink:0}
+  .th-cat-track{flex:1;height:14px;background:var(--surface2);border-radius:3px;overflow:hidden}
+  .th-cat-fill{height:100%;border-radius:3px}
+  .th-cat-val{width:44px;text-align:right;font-weight:700;color:var(--text-dim)}
+  .th-hint{font-size:10.5px;color:var(--text-dim);line-height:1.45;margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+  .th-empty{color:var(--text-dim);font-size:12px;padding:14px 4px;text-align:center}
+  .th-save-row{display:flex;gap:10px;align-items:center;margin-top:16px}
+  .th-btn-save{background:var(--accent);color:#0f1117;border:none;border-radius:var(--radius);
+    padding:10px 20px;font-family:'Inter',sans-serif;font-weight:700;font-size:13px;cursor:pointer}
+  .th-btn-save:hover{opacity:.85}
+  .th-btn-save:disabled{opacity:.4;cursor:not-allowed}
+  .th-save-hint{font-size:11.5px;color:var(--text-dim)}
+
+  /* Reporte marca */
+  .th-marca-head{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .th-marca-title{font-size:18px;font-weight:800}
+  .th-marca-title span{color:var(--text-dim);font-weight:600;font-size:13px}
+  .th-marca-cuadra{margin-left:auto;font-size:12.5px;font-weight:800;padding:6px 14px;border-radius:20px}
+  .th-marca-cuadra.ok{background:rgba(34,197,94,.15);color:#22c55e;border:1px solid #22c55e}
+  .th-marca-cuadra.bad{background:rgba(239,68,68,.12);color:#ef4444;border:1px solid #ef4444}
+  .th-rep-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+  .th-rep-table{width:100%;border-collapse:collapse;font-size:13px;max-width:640px}
+  .th-rep-table td{padding:7px 12px;border-bottom:1px solid rgba(42,48,72,.4)}
+  .th-rep-table .th-rep-sect{background:#3a3a3a;color:#fff;font-weight:800;font-size:11px;
+    text-transform:uppercase;letter-spacing:.05em;padding:8px 12px}
+  .th-rep-table .th-rep-lbl{color:var(--text-dim)}
+  .th-rep-table .th-rep-val{text-align:right;font-weight:700;color:var(--text);width:90px}
+  .th-rep-table .th-rep-total td{background:var(--surface2);font-weight:800;color:var(--text);
+    border-top:2px solid var(--border);border-bottom:none}
+  .th-rep-table .th-rep-total .th-rep-val{color:var(--accent)}
+  .th-rep-note{font-size:11px;color:var(--text-dim);margin-top:12px;line-height:1.5;max-width:640px}
+  .th-btn-export{background:transparent;border:1px solid var(--accent2);color:var(--accent2);
+    border-radius:var(--radius-sm);padding:7px 14px;font-family:'Inter',sans-serif;font-weight:700;
+    font-size:12px;cursor:pointer;margin-top:14px}
+  .th-btn-export:hover{background:var(--accent2);color:#0f1117}
+
+  /* Cierre de mes */
+  .th-cierre-sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+  .th-cierre-title{font-size:13px;font-weight:800;color:var(--accent2);margin-bottom:4px}
+  .th-cierre-sub{font-size:11.5px;color:var(--text-dim);margin-bottom:14px;line-height:1.45}
+  .th-grilla-wrap{overflow-x:auto}
+  .th-grilla{border-collapse:collapse;font-size:11px}
+  .th-grilla th{font-size:9px;color:var(--text-dim);font-weight:700;padding:4px 3px;text-align:center;white-space:nowrap}
+  .th-grilla th.g-tech{text-align:left;padding-left:6px;min-width:120px;position:sticky;left:0;background:var(--surface);z-index:2}
+  .th-grilla td.g-tech{text-align:left;padding-left:6px;font-weight:600;color:var(--text);white-space:nowrap;
+    position:sticky;left:0;background:var(--surface);z-index:1;border-right:1px solid var(--border)}
+  .th-grilla td{padding:0;text-align:center}
+  .th-gcell{width:22px;height:22px;border-radius:3px;margin:1px;cursor:default;display:inline-flex;
+    align-items:center;justify-content:center;font-size:10px;font-weight:800;border:1px solid var(--bg)}
+  .th-gcell.g-ok{background:rgba(34,197,94,.85);color:#0f1117}
+  .th-gcell.g-warn{background:rgba(250,204,21,.85);color:#0f1117}
+  .th-gcell.g-falta{background:rgba(239,68,68,.85);color:#fff}
+  .th-gcell.g-aus{background:rgba(107,116,148,.3);color:var(--text-dim)}
+  .th-gcell.g-vac{background:rgba(62,207,207,.3);color:var(--accent2)}
+  .th-gcell.g-nolab{background:transparent}
+  .th-gcell.clickable{cursor:pointer}
+  .th-gcell.clickable:hover{outline:2px solid var(--accent);outline-offset:-1px}
+  .th-gdow{font-size:8px;color:var(--text-dim)}
+  .th-grilla-leyenda{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:10.5px;color:var(--text-dim)}
+  .th-gl-item{display:flex;align-items:center;gap:5px}
+  .th-gl-box{width:12px;height:12px;border-radius:3px}
+  .th-liq-table{width:100%;border-collapse:collapse;font-size:12px}
+  .th-liq-table th{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-dim);
+    text-align:right;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+  .th-liq-table th:first-child{text-align:left}
+  .th-liq-table td{padding:8px 10px;text-align:right;border-bottom:1px solid rgba(42,48,72,.4);white-space:nowrap}
+  .th-liq-table td:first-child{text-align:left;color:var(--text);font-weight:600}
+  .th-liq-simple{color:var(--accent);font-weight:700}
+  .th-liq-doble{color:#ef4444;font-weight:700}
+  .th-liq-pagado{color:var(--text);font-weight:800}
+  .th-liq-vac{color:var(--accent2)}
+  .th-liq-ok{color:#22c55e;font-weight:800}
+  .th-liq-bad{color:#ef4444;font-weight:800}
+  .th-liq-total td{border-top:2px solid var(--border);border-bottom:none;font-weight:800;color:var(--text);padding-top:10px}
+</style>
+<script>
+(function(){
+  // 1) Inyectar el panel al final del body (si no existe ya)
+  if (!document.getElementById('horariosPanel')) {
+    var wrap = document.createElement('div');
+    wrap.innerHTML = '<div class="horarios-panel" id="horariosPanel">\n  <div class="th-subtabs">\n    <div class="th-subtab active" id="thStCarga" onclick="thSetView(\'carga\')">🕐 Carga de tarjetas</div>\n    <div class="th-subtab" id="thStMarca" onclick="thSetView(\'marca\')">📊 Reporte marca (CNH)</div>\n    <div class="th-subtab" id="thStCierre" onclick="thSetView(\'cierre\')">🗂 Cierre de mes</div>\n  </div>\n\n  <!-- Carga -->\n  <div class="th-view active" id="thViewCarga">\n    <div class="th-toolbar">\n      <div class="th-daynav">\n        <button onclick="thCambiarDia(-1)">‹</button>\n        <span id="thDiaLabel"></span>\n        <button onclick="thCambiarDia(1)">›</button>\n      </div>\n      <select class="th-tech-select" id="thTechSelect" onchange="thCargarTarjeta()"></select>\n      <div class="th-verif">\n        <div class="th-verif-item"><span class="th-verif-label">Trabajadas</span><span class="th-verif-val" id="thVTrab" style="color:var(--accent2)">0 h</span></div>\n        <div class="th-verif-sep"></div>\n        <div class="th-verif-item"><span class="th-verif-label">Disponibles</span><span class="th-verif-val" id="thVDisp">0 h</span></div>\n        <div class="th-verif-sep"></div>\n        <span class="th-verif-estado ok" id="thVEstado">Sin cargar</span>\n      </div>\n    </div>\n    <div class="th-cols">\n      <div class="th-panel-b">\n        <div class="th-panel-title"><span>Franjas de la tarjeta</span><span id="thFrCount" style="color:var(--text-dim);font-weight:600;text-transform:none;letter-spacing:0"></span></div>\n        <table class="thfr-table">\n          <thead><tr>\n            <th style="width:82px">Desde</th><th style="width:82px">Hasta</th>\n            <th style="width:50px;text-align:right">Hs</th><th>Categoría</th><th>OT</th>\n            <th>Observación</th><th style="width:28px"></th>\n          </tr></thead>\n          <tbody id="thFranjasBody"></tbody>\n        </table>\n        <button class="btn-addfranja" onclick="thAgregarFranja()">+ Agregar franja</button>\n        <div class="th-solap-banner" id="thSolapBanner">⛔ <span id="thSolapMsg"></span></div>\n        <div class="th-hueco-banner" id="thHuecoBanner">⚠ <span id="thHuecoMsg"></span></div>\n        <div id="thCatResumen"></div>\n        <div class="th-save-row">\n          <button class="th-btn-save" id="thBtnSave" onclick="thGuardarTarjeta()">Guardar tarjeta</button>\n          <span class="th-save-hint" id="thSaveHint"></span>\n        </div>\n      </div>\n      <div class="th-panel-b">\n        <div class="th-panel-title"><span>Horas disponibles</span><span style="color:var(--text-dim);font-weight:600;text-transform:none;letter-spacing:0">eje IGS</span></div>\n        <div class="th-disp-row"><label>Diarias</label><input type="text" id="thDDiarias" oninput="thRecalc()" inputmode="decimal"></div>\n        <div class="th-disp-row"><label>Extras</label><input type="text" id="thDExtras" oninput="thRecalc()" inputmode="decimal" placeholder="auto"></div>\n        <div class="th-disp-row"><label>Vacaciones</label><input type="text" id="thDVacaciones" oninput="thRecalc()" inputmode="decimal" placeholder="0"></div>\n        <div class="th-disp-row"><label>Ausencias</label><input type="text" id="thDAusencias" oninput="thRecalc()" inputmode="decimal" placeholder="0"></div>\n        <div class="th-disp-total"><div class="th-disp-row"><label>Total disponibles</label><span id="thDTotal">0 h</span></div></div>\n        <div class="th-extras-box">\n          <div class="th-panel-title" style="margin-bottom:8px"><span>Extras del día</span><span style="color:var(--text-dim);font-weight:600;text-transform:none;letter-spacing:0">calculadas</span></div>\n          <div class="th-extras-line"><span class="lbl">Extra simple</span><span style="color:var(--accent);font-weight:700" id="thExSimple">0 h</span></div>\n          <div class="th-extras-line"><span class="lbl">Extra doble (sáb +13h / dom)</span><span style="color:#ef4444;font-weight:700" id="thExDoble">0 h</span></div>\n          <div class="th-extras-line" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px">\n            <span class="lbl" style="font-weight:700;color:var(--text)">Total a informar (crudo)</span>\n            <span style="font-weight:800;color:var(--text)" id="thExCrudo">0 h</span>\n          </div>\n        </div>\n        <div class="th-hint">\n          Las extras salen solas de comparar las franjas contra la jornada del día\n          (L–J 08–17, V 08–16:30, Sáb 08–12). Antes de las 8 y el sábado 12–13 son simples;\n          el sábado desde las 13:00 y el domingo entero corren dobles. A la marca va el total en crudo.\n        </div>\n      </div>\n    </div>\n  </div>\n\n  <!-- Reporte marca -->\n  <div class="th-view" id="thViewMarca">\n    <div class="th-marca-head">\n      <div class="th-marca-title">Seguimiento Gestión Servicios <span>— reporte CNH</span></div>\n      <div class="th-daynav"><button onclick="thCambiarMes(-1)">‹</button><span id="thMesMarcaLabel" style="min-width:150px"></span><button onclick="thCambiarMes(1)">›</button></div>\n      <span class="th-marca-cuadra ok" id="thMarcaCuadra">✓ Cuadra</span>\n    </div>\n    <div class="th-rep-wrap">\n      <table class="th-rep-table" id="thRepTable"></table>\n      <div class="th-rep-note">\n        Todo se llena solo desde las tarjetas del mes. La regla de control es\n        <b style="color:var(--text-dim)">Total Disponibles = Total Detalle</b>: si no cuadra, hay tarjetas sin completar.\n        Las Hs Extras van en crudo (horas realmente trabajadas), como pide el cuadro de la marca.\n      </div>\n      <button class="th-btn-export" onclick="thExportarMarca()">⬇ Exportar para la marca</button>\n    </div>\n  </div>\n\n  <!-- Cierre de mes -->\n  <div class="th-view" id="thViewCierre">\n    <div class="th-marca-head">\n      <div class="th-marca-title">Cierre de mes <span>— control y liquidación (uso interno)</span></div>\n      <div class="th-daynav"><button onclick="thCambiarMes(-1)">‹</button><span id="thMesCierreLabel" style="min-width:150px"></span><button onclick="thCambiarMes(1)">›</button></div>\n    </div>\n    <div class="th-cierre-sec">\n      <div class="th-cierre-title">Control de entregas</div>\n      <div class="th-cierre-sub">Qué tarjetas están cargadas y cuáles faltan, técnico por técnico. Tocá una celda roja para marcarla como ausencia o vacaciones si el técnico no trabajó ese día.</div>\n      <div class="th-grilla-wrap"><table class="th-grilla" id="thGrillaTabla"></table></div>\n      <div class="th-grilla-leyenda">\n        <div class="th-gl-item"><span class="th-gl-box g-ok" style="background:rgba(34,197,94,.85)"></span> Cargada y cuadra</div>\n        <div class="th-gl-item"><span class="th-gl-box g-warn" style="background:rgba(250,204,21,.85)"></span> Cargada, revisar</div>\n        <div class="th-gl-item"><span class="th-gl-box g-falta" style="background:rgba(239,68,68,.85)"></span> Falta tarjeta</div>\n        <div class="th-gl-item"><span class="th-gl-box g-aus" style="background:rgba(107,116,148,.3)"></span> Ausencia</div>\n        <div class="th-gl-item"><span class="th-gl-box g-vac" style="background:rgba(62,207,207,.3)"></span> Vacaciones</div>\n        <div class="th-gl-item"><span class="th-gl-box g-nolab" style="border:1px solid var(--border)"></span> No laborable</div>\n      </div>\n    </div>\n    <div class="th-cierre-sec">\n      <div class="th-cierre-title">Liquidación por técnico</div>\n      <div class="th-cierre-sub">Extras separadas en simples y dobles, con el equivalente a pagar (la doble vale x2). Ausencias y vacaciones del mes. Esto reemplaza el Excel de cierre.</div>\n      <table class="th-liq-table" id="thLiqTabla"></table>\n      <button class="th-btn-export" onclick="thExportarLiq()">⬇ Exportar liquidación</button>\n    </div>\n  </div>\n</div>\n\n\n<!-- ────────────────────────────────────────────────────────────────────\n     PASO 3 — El JAVASCRIPT.\n     Antes de cerrar el <script> principal (o en un <script> nuevo al final\n     del body), pegá todo este bloque. Y en tu función switchTab(tab)\n     existente, agregá estas líneas donde togglés los paneles:\n\n       document.getElementById(\'horariosPanel\').classList.toggle(\'visible\', tab===\'horarios\');\n       document.getElementById(\'tabHorarios\').classList.toggle(\'active\', tab===\'horarios\');\n       if (tab===\'horarios\') thInit();\n\n     ──────────────────────────────────────────────────────────────────── -->';
+    while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+  }
+  // 2) Agregar el tab después de Analytics (si no existe ya)
+  if (!document.getElementById('tabHorarios')) {
+    var tabAn = document.getElementById('tabAnalytics');
+    if (tabAn) {
+      var t = document.createElement('div');
+      t.className = 'nav-tab';
+      t.id = 'tabHorarios';
+      t.setAttribute('onclick', "switchTab('horarios')");
+      t.textContent = '🕐 Tarjetas horarias';
+      tabAn.parentNode.insertBefore(t, tabAn.nextSibling);
+    }
+  }
+  // 3) Envolver switchTab para manejar la pestaña 'horarios' sin tocar el original
+  if (typeof switchTab === 'function' && !switchTab._thWrapped) {
+    var _origSwitchTab = switchTab;
+    window.switchTab = function(tab){
+      _origSwitchTab(tab);
+      var panel = document.getElementById('horariosPanel');
+      var tabH  = document.getElementById('tabHorarios');
+      if (panel) panel.classList.toggle('visible', tab==='horarios');
+      if (tabH)  tabH.classList.toggle('active', tab==='horarios');
+      // Ocultar el panel de horarios cuando NO es su pestaña ya lo hace la clase .visible.
+      if (tab==='horarios') { try { thInit(); } catch(e){ console.warn('thInit:', e.message); } }
+    };
+    window.switchTab._thWrapped = true;
+  }
+})();
+</script>
+<script>
+// ══════════════════════════════════════════════════════════════
+// TARJETAS HORARIAS — lógica. Reusa TECNICOS, HOURS, SLOT_H, slotIndex,
+// jsonpRequest, trabajos, loadTrabajosSilent, ordenDe, esc del tablero.
+// ══════════════════════════════════════════════════════════════
+
+// Las 11 categorías del Excel REGISTRO_DE_HORAS.
+const TH_CATEGORIAS=[
+  {id:'G',   label:'Garantía Normal',    sigla:'G',   fila:'Hs. Trabajadas Garantía Normal',        facturable:true,  color:'#38bdf8'},
+  {id:'GMAS',label:'Garantía REV/PDI/ET',sigla:'G+',  fila:'Hs. Trabajadas Garantía (Rev, Pdi, Et)',facturable:true,  color:'#0ea5e9'},
+  {id:'CT',  label:'Taller',             sigla:'CT',  fila:'Hs. Trabajadas Taller',                 facturable:true,  color:'#22c55e'},
+  {id:'CC',  label:'Campo',              sigla:'CC',  fila:'Hs. Trabajadas Campo',                  facturable:true,  color:'#4ade80'},
+  {id:'TT',  label:'Traslado',           sigla:'TT',  fila:'Hs. Trabajadas Traslado',               facturable:false, color:'#f5a623'},
+  {id:'I',   label:'Internas',           sigla:'I',   fila:'Hs. Trabajadas Internas',               facturable:false, color:'#f472b6'},
+  {id:'CAP', label:'Capacitaciones',     sigla:'CAP', fila:'Hs. Capacitaciones',                    facturable:false, color:'#fb923c'},
+  {id:'RE',  label:'Retrabajo',          sigla:'RE',  fila:'Hs. Retrabajo',                         facturable:false, color:'#ef4444'},
+  {id:'OG',  label:'Op. Generales',      sigla:'OG',  fila:'Hs. Trabajadas Operaciones Generales',  facturable:false, color:'#a78bfa'},
+  {id:'REF', label:'Refrigerios',        sigla:'Refr',fila:'Hs. Refrigerios',                       facturable:false, color:'#94a3b8'},
+  {id:'DEM', label:'Demora',             sigla:'Dem', fila:'Hs. Demoras',                           facturable:false, color:'#2f6fed'},
+];
+function thCat(id){return TH_CATEGORIAS.find(c=>c.id===id)||null;}
+
+// Grilla de 15 min a 24 h. Si el tablero ya define HOURS de 08–19, usamos una propia.
+const TH_HOURS=[];
+for(let h=0;h<24;h++){for(let m=0;m<60;m+=15){TH_HOURS.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);}}
+TH_HOURS.push('24:00');
+function thSlot(t){const p=String(t).split(':');return Number(p[0])*4+Math.floor(Number(p[1]||0)/15);}
+const TH_SLOT_H=0.25;
+function thRound(n){return Math.round(n*100)/100;}
+function thNum(v){const x=parseFloat(String(v==null?0:v).replace(',','.'));return isNaN(x)?0:x;}
+function thFmt(n){return(Math.round(n*10)/10).toString().replace('.',',')+' h';}
+
+// Jornada (espejo del tablero). Si tu tablero ya expone jornadaSlots/sabadoTechs,
+// se pueden reusar; acá van propias para no depender del orden de carga.
+const TH_SAB_A=['AT','HR','CC'], TH_SAB_B=['MB','AR','VP','AP'], TH_SAB_ANCLA='2026-07-04';
+function thSabTechs(iso){const a=new Date(TH_SAB_ANCLA+'T00:00:00'),d=new Date(iso+'T00:00:00');
+  const w=Math.round((d-a)/(7*86400000));return((w%2)+2)%2===0?TH_SAB_A:TH_SAB_B;}
+function thEsperaTarjeta(iso,tech){
+  if(typeof FERIADOS!=='undefined'&&FERIADOS[iso])return false;
+  const dow=new Date(iso+'T00:00:00').getDay();
+  if(dow===0)return false;
+  if(dow===6)return thSabTechs(iso).includes(tech);
+  return true;
+}
+function thFinJornada(dow){if(dow===0)return null;if(dow===6)return '12:00';if(dow===5)return '16:30';return '17:00';}
+function thClasificar(fecha,desde,hasta){
+  const dow=new Date(fecha+'T00:00:00').getDay();
+  const si=thSlot(desde),ei=thSlot(hasta);
+  const total=Math.max(0,(ei-si)*TH_SLOT_H);
+  if(total===0)return{normal:0,simple:0,doble:0};
+  if(dow===0)return{normal:0,simple:0,doble:total};       // domingo doble
+  const ini=thSlot('08:00');
+  if(dow===6){
+    const s12=thSlot('12:00'),s13=thSlot('13:00');let n=0,s=0,d=0;
+    for(let x=si;x<ei;x++){if(x<ini)s+=TH_SLOT_H;else if(x<s12)n+=TH_SLOT_H;else if(x<s13)s+=TH_SLOT_H;else d+=TH_SLOT_H;}
+    return{normal:thRound(n),simple:thRound(s),doble:thRound(d)};
+  }
+  const fin=thSlot(thFinJornada(dow));let n=0,s=0;
+  for(let x=si;x<ei;x++){if(x<ini)s+=TH_SLOT_H;else if(x<fin)n+=TH_SLOT_H;else s+=TH_SLOT_H;}
+  return{normal:thRound(n),simple:thRound(s),doble:0};
+}
+function thExtras(t){let s=0,d=0;(t.franjas||[]).forEach(f=>{const c=thClasificar(t.fecha,f.desde,f.hasta);s+=c.simple;d+=c.doble;});
+  return{simple:thRound(s),doble:thRound(d),totalCrudo:thRound(s+d),totalPagado:thRound(s+d*2)};}
+
+// ── Estado ──
+let thDia=thHoyISO(), thTech=(typeof TECNICOS!=='undefined'&&TECNICOS[0])?TECNICOS[0].id:'VP';
+let thVista='carga', thMes=thDia.slice(0,7);
+const thTarjetas={};      // cache: `${tech}_${fecha}` → {tech,fecha,franjas,disp}
+const thMarcas={};        // ausencias/vacaciones: `${tech}_${fecha}` → 'AUS'|'VAC'
+let thRangoCargado=false;
+
+function thHoyISO(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function thClave(){return thTech+'_'+thDia;}
+function thTarjeta(){const k=thClave();if(!thTarjetas[k])thTarjetas[k]={tech:thTech,fecha:thDia,disp:{diarias:'',extras:'',vacaciones:'',ausencias:''},franjas:[]};thTarjetas[k].fecha=thDia;thTarjetas[k].tech=thTech;return thTarjetas[k];}
+
+function thHorasFranja(f){return Math.max(0,(thSlot(f.hasta)-thSlot(f.desde))*TH_SLOT_H);}
+function thTrabajadas(t){return (t.franjas||[]).reduce((a,f)=>a+thHorasFranja(f),0);}
+function thDisponibles(t){const d=t.disp||{};const ex=(d.extras!==''&&d.extras!=null)?thNum(d.extras):thExtras(t).totalCrudo;return thRound(thNum(d.diarias)+ex-thNum(d.vacaciones)-thNum(d.ausencias));}
+function thVerif(t){return thRound(thTrabajadas(t)-thDisponibles(t));}
+function thSolapadas(t){
+  const sol=new Set();const fr=t.franjas||[];
+  for(let i=0;i<fr.length;i++){const ai=thSlot(fr[i].desde),af=thSlot(fr[i].hasta);if(af<=ai)continue;
+    for(let j=i+1;j<fr.length;j++){const bi=thSlot(fr[j].desde),bf=thSlot(fr[j].hasta);if(bf<=bi)continue;
+      if(ai<bf&&bi<af){sol.add(i);sol.add(j);}}}
+  return sol;
+}
+function thHuecos(t){
+  const fr=(t.franjas||[]).filter(f=>thSlot(f.hasta)>thSlot(f.desde));
+  if(fr.length<2)return[];
+  const o=fr.slice().sort((a,b)=>thSlot(a.desde)-thSlot(b.desde));
+  const h=[];let cur=thSlot(o[0].hasta);
+  for(let i=1;i<o.length;i++){const ini=thSlot(o[i].desde),fin=thSlot(o[i].hasta);
+    if(ini>cur)h.push({desde:TH_HOURS[cur],hasta:TH_HOURS[ini],horas:thRound((ini-cur)*TH_SLOT_H)});
+    cur=Math.max(cur,fin);}
+  return h;
+}
+
+// OT del pizarrón real (trabajos activos con orden). Reusa 'trabajos' y 'ordenDe'.
+function thOTs(){
+  if(typeof trabajos==='undefined')return [];
+  return trabajos.filter(t=>t.estado!=='TERMINADO').map(t=>{
+    const ot=(typeof ordenDe==='function')?ordenDe(t):(t.ordenNro||'');
+    return {id:t.id, ot:ot, label:(ot?('OT '+ot+' · '):'')+(t.titulo||'')+(t.unidad?(' — '+t.unidad):'')};
+  }).filter(x=>x.ot); // solo las que tienen N° de orden
+}
+
+// ── Render carga ──
+function thOptHoras(sel){return '<option value="">—</option>'+TH_HOURS.map(h=>`<option value="${h}" ${h===sel?'selected':''}>${h}</option>`).join('');}
+function thOptCats(sel){return '<option value="">— categoría —</option>'+TH_CATEGORIAS.map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${c.sigla} · ${c.label}</option>`).join('');}
+function thOptOTs(sel){const ots=thOTs();return '<option value="">— sin OT —</option>'+ots.map(o=>`<option value="${o.id}" ${o.id===sel?'selected':''}>${o.label}</option>`).join('');}
+
+function thRenderFranjas(){
+  const t=thTarjeta();const body=document.getElementById('thFranjasBody');
+  const solap=thSolapadas(t);
+  document.getElementById('thFrCount').textContent=t.franjas.length?t.franjas.length+' franjas':'';
+  if(!t.franjas.length){body.innerHTML=`<tr><td colspan="7" class="th-empty">Sin franjas todavía. Agregá la primera abajo.</td></tr>`;return;}
+  body.innerHTML=t.franjas.map((f,i)=>{
+    const cat=thCat(f.cat), facturableSinOT=cat&&cat.facturable&&!f.otId, seSolapa=solap.has(i);
+    const hrs=thHorasFranja(f), cl=thClasificar(t.fecha,f.desde,f.hasta);
+    let tag='';
+    if(cl.doble>0)tag=`<span class="thfr-extra-tag doble">DOBLE ${thFmt(cl.doble)}</span>`;
+    else if(cl.simple>0)tag=`<span class="thfr-extra-tag simple">EXTRA ${thFmt(cl.simple)}</span>`;
+    const cls=[seSolapa?'solap-row':'',facturableSinOT&&!seSolapa?'warn-row':'',(cl.simple>0||cl.doble>0)&&!seSolapa?'extra-row':''].filter(Boolean).join(' ');
+    return `<tr class="${cls}">
+      <td><select class="thfr-input time" onchange="thEdit(${i},'desde',this.value)">${thOptHoras(f.desde)}</select>${seSolapa?'<span class="thfr-solap-ico" title="Se pisa con otra franja">⛔</span>':''}</td>
+      <td><select class="thfr-input time" onchange="thEdit(${i},'hasta',this.value)">${thOptHoras(f.hasta)}</select></td>
+      <td class="thfr-hrs">${hrs>0?thFmt(hrs):'—'}${tag}</td>
+      <td class="thfr-cat"><select class="thfr-input" onchange="thEdit(${i},'cat',this.value)">${thOptCats(f.cat)}</select></td>
+      <td class="thfr-ot"><select class="thfr-input" onchange="thEdit(${i},'otId',this.value)">${thOptOTs(f.otId)}</select>${facturableSinOT?'<span class="thfr-warn-ico" title="Trabajo facturable sin OT">⚠</span>':''}</td>
+      <td><input class="thfr-input" value="${(typeof esc==='function'?esc(f.obs||''):(f.obs||''))}" onchange="thEdit(${i},'obs',this.value)" placeholder="observación del técnico"></td>
+      <td><button class="thfr-del" onclick="thBorrarFranja(${i})">×</button></td>
+    </tr>`;
+  }).join('');
+}
+function thRenderCats(){
+  const t=thTarjeta();const cont=document.getElementById('thCatResumen');
+  const pc={};TH_CATEGORIAS.forEach(c=>pc[c.id]=0);
+  t.franjas.forEach(f=>{if(pc[f.cat]!==undefined)pc[f.cat]+=thHorasFranja(f);});
+  const act=TH_CATEGORIAS.filter(c=>pc[c.id]>0);
+  if(!act.length){cont.innerHTML='';return;}
+  const max=Math.max(...act.map(c=>pc[c.id]));
+  cont.innerHTML='<div class="th-panel-title" style="margin-top:14px">Resumen por categoría</div>'+
+    act.map(c=>`<div class="th-cat-bar"><span class="th-cat-sigla" style="color:${c.color}">${c.sigla}</span><div class="th-cat-track"><div class="th-cat-fill" style="width:${pc[c.id]/max*100}%;background:${c.color}"></div></div><span class="th-cat-val">${thFmt(pc[c.id])}</span></div>`).join('');
+}
+function thRenderVerif(){
+  const t=thTarjeta();const trab=thTrabajadas(t),disp=thDisponibles(t),x=thVerif(t);
+  document.getElementById('thVTrab').textContent=thFmt(trab);
+  document.getElementById('thVDisp').textContent=thFmt(disp);
+  document.getElementById('thDTotal').textContent=thFmt(disp);
+  const ex=thExtras(t);
+  document.getElementById('thExSimple').textContent=thFmt(ex.simple);
+  document.getElementById('thExDoble').textContent=thFmt(ex.doble);
+  document.getElementById('thExCrudo').textContent=thFmt(ex.totalCrudo);
+  const est=document.getElementById('thVEstado'),solap=thSolapadas(t);
+  const sb=document.getElementById('thSolapBanner'),hb=document.getElementById('thHuecoBanner');
+  const btn=document.getElementById('thBtnSave'),hint=document.getElementById('thSaveHint');
+  if(solap.size>0){
+    sb.classList.add('show');hb.classList.remove('show');
+    document.getElementById('thSolapMsg').textContent='Hay franjas que se pisan en el tiempo. No se puede guardar hasta corregirlas — un técnico no puede estar en dos lugares a la vez.';
+    est.className='th-verif-estado bad';est.textContent='⛔ Solapamiento';
+    btn.disabled=true;hint.textContent='Corregí el solapamiento para poder guardar.';
+    return;
+  }
+  sb.classList.remove('show');btn.disabled=false;hint.textContent='';
+  const hue=thHuecos(t);
+  if(hue.length>0){hb.classList.add('show');
+    document.getElementById('thHuecoMsg').textContent='Hay tramos sin cubrir en el medio de la jornada: '+hue.map(h=>`${thFmt(h.horas)} entre ${h.desde} y ${h.hasta}`).join(' · ')+'. Completá las franjas o dejalo así si el hueco es real.';
+  }else hb.classList.remove('show');
+  if(x===0&&trab>0){est.className='th-verif-estado ok';est.textContent='✓ Cuadra';}
+  else if(trab===0){est.className='th-verif-estado';est.style.cssText='background:var(--surface2);color:var(--text-dim);border:1px solid var(--border)';est.textContent='Sin cargar';return;}
+  else{est.className='th-verif-estado bad';est.textContent=(x>0?'✗ Sobran ':'✗ Faltan ')+thFmt(Math.abs(x));}
+  est.style.cssText='';
+}
+function thRenderDisp(){const d=thTarjeta().disp;document.getElementById('thDDiarias').value=d.diarias||'';document.getElementById('thDExtras').value=d.extras||'';document.getElementById('thDVacaciones').value=d.vacaciones||'';document.getElementById('thDAusencias').value=d.ausencias||'';}
+function thRenderCarga(){thRenderFranjas();thRenderCats();thRenderVerif();}
+
+function thEdit(i,campo,val){thTarjeta().franjas[i][campo]=val;thRenderCarga();}
+function thAgregarFranja(){const t=thTarjeta();const u=t.franjas[t.franjas.length-1];t.franjas.push({desde:u?u.hasta:'08:00',hasta:'',cat:'',otId:'',obs:''});thRenderCarga();}
+function thBorrarFranja(i){thTarjeta().franjas.splice(i,1);thRenderCarga();}
+function thRecalc(){const t=thTarjeta();t.disp={diarias:document.getElementById('thDDiarias').value,extras:document.getElementById('thDExtras').value,vacaciones:document.getElementById('thDVacaciones').value,ausencias:document.getElementById('thDAusencias').value};thRenderVerif();}
+function thCargarTarjeta(){thTech=document.getElementById('thTechSelect').value;thRenderDisp();thRenderCarga();}
+function thCambiarDia(delta){const d=new Date(thDia+'T00:00:00');d.setDate(d.getDate()+delta);
+  thDia=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  thActualizarDiaLabel();thCargarDiaRemoto().then(()=>{thRenderDisp();thRenderCarga();});}
+function thActualizarDiaLabel(){const d=new Date(thDia+'T00:00:00');document.getElementById('thDiaLabel').textContent=d.toLocaleDateString('es-AR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'});}
+
+// ── Persistencia (usa jsonpRequest del tablero) ──
+async function thCargarDiaRemoto(){
+  if(typeof jsonpRequest==='undefined')return;
+  try{
+    const r=await jsonpRequest({action:'getTarjetas',tech:thTech,desde:thDia,hasta:thDia});
+    if(r&&r.ok&&r.data){r.data.forEach(t=>{thTarjetas[t.tech+'_'+t.fecha]={tech:t.tech,fecha:t.fecha,franjas:t.franjas||[],disp:t.disp||{diarias:'',extras:'',vacaciones:'',ausencias:''}};});}
+  }catch(e){console.warn('getTarjetas:',e.message);}
+}
+async function thCargarMesRemoto(){
+  if(typeof jsonpRequest==='undefined'){thRangoCargado=true;return;}
+  const dias=thDiasDelMes(thMes);
+  try{
+    const r=await jsonpRequest({action:'getTarjetas',desde:dias[0],hasta:dias[dias.length-1]});
+    if(r&&r.ok&&r.data){r.data.forEach(t=>{thTarjetas[t.tech+'_'+t.fecha]={tech:t.tech,fecha:t.fecha,franjas:t.franjas||[],disp:t.disp||{diarias:'',extras:'',vacaciones:'',ausencias:''}};});}
+    thRangoCargado=true;
+  }catch(e){console.warn('getTarjetas mes:',e.message);thRangoCargado=true;}
+}
+async function thGuardarTarjeta(){
+  const t=thTarjeta();
+  if(thSolapadas(t).size>0){alert('No se puede guardar: hay franjas que se pisan en el tiempo.');return;}
+  const btn=document.getElementById('thBtnSave');btn.disabled=true;btn.textContent='Guardando…';
+  try{
+    if(typeof jsonpRequest!=='undefined'){
+      const r=await jsonpRequest({action:'saveTarjeta',tech:t.tech,fecha:t.fecha,
+        franjas:JSON.stringify(t.franjas||[]),disp:JSON.stringify(t.disp||{})});
+      if(!r||!r.ok)throw new Error(r&&r.error||'sin respuesta');
+    }
+    btn.textContent='✓ Guardada';setTimeout(()=>{btn.textContent='Guardar tarjeta';btn.disabled=false;},1500);
+  }catch(e){
+    alert('No se pudo guardar la tarjeta: '+e.message);
+    btn.textContent='Guardar tarjeta';btn.disabled=false;
+  }
+}
+
+// ── Reporte marca ──
+function thDiasDelMes(mes){const[y,m]=mes.split('-').map(Number);const n=new Date(y,m,0).getDate();const o=[];for(let d=1;d<=n;d++)o.push(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);return o;}
+function thMesLabel(mes){const[y,m]=mes.split('-').map(Number);const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];return MESES[m-1]+' '+y;}
+function thTarjetasDelMes(){const dias=thDiasDelMes(thMes);const set=new Set(dias);return Object.values(thTarjetas).filter(t=>set.has(t.fecha)&&t.franjas&&t.franjas.length);}
+
+async function thRenderMarca(){
+  if(!thRangoCargado)await thCargarMesRemoto();
+  document.getElementById('thMesMarcaLabel').textContent=thMesLabel(thMes);
+  const delMes=thTarjetasDelMes();
+  let extras=0,vac=0,aus=0,diarias=0;
+  const pc={};TH_CATEGORIAS.forEach(c=>pc[c.id]=0);
+  const dias=new Set(),techs=new Set();
+  delMes.forEach(t=>{
+    const ex=(t.disp&&t.disp.extras!==''&&t.disp.extras!=null)?thNum(t.disp.extras):thExtras(t).totalCrudo;
+    extras+=ex;vac+=thNum(t.disp&&t.disp.vacaciones);aus+=thNum(t.disp&&t.disp.ausencias);diarias+=thNum(t.disp&&t.disp.diarias);
+    (t.franjas||[]).forEach(f=>{if(pc[f.cat]!==undefined)pc[f.cat]+=thHorasFranja(f);});
+    dias.add(t.fecha);techs.add(t.tech);
+  });
+  // Ausencias/vacaciones marcadas a mano
+  Object.keys(thMarcas).forEach(k=>{const[tech,fecha]=k.split('_');if(thMes!==fecha.slice(0,7))return;if(!thEsperaTarjeta(fecha,tech))return;if(thMarcas[k]==='AUS')aus+=9;if(thMarcas[k]==='VAC')vac+=9;});
+  const totalDet=thRound(Object.values(pc).reduce((a,b)=>a+b,0));
+  const totalDisp=thRound(diarias+extras-vac-aus);
+  const cuadra=Math.abs(totalDisp-totalDet)<1;
+  const fnum=n=>(Math.round(n*10)/10).toString().replace('.',',');
+  const filaD=(l,v)=>`<tr><td class="th-rep-lbl">${l}</td><td class="th-rep-val">${v===0?'0':fnum(v)}</td></tr>`;
+  let html='<tr><td class="th-rep-sect" colspan="2">Datos Base</td></tr>';
+  html+=filaD('Días con actividad',dias.size);
+  html+=filaD('N° de Técnicos activos',techs.size);
+  html+=filaD('Hs Extras (+)',extras);
+  html+=filaD('Hs Vacaciones (-)',vac);
+  html+=filaD('Hs Ausencias (-)',aus);
+  html+=`<tr class="th-rep-total"><td>Total Disponibles</td><td class="th-rep-val">${fnum(totalDisp)}</td></tr>`;
+  html+='<tr><td class="th-rep-sect" colspan="2">Registro de Hs</td></tr>';
+  TH_CATEGORIAS.forEach(c=>{html+=filaD(c.fila,pc[c.id]);});
+  html+=`<tr class="th-rep-total"><td>Total Detalle de Hs</td><td class="th-rep-val">${fnum(totalDet)}</td></tr>`;
+  document.getElementById('thRepTable').innerHTML=html;
+  const cb=document.getElementById('thMarcaCuadra');
+  cb.className='th-marca-cuadra '+(cuadra?'ok':'bad');
+  cb.textContent=cuadra?'✓ Cuadra (Disp = Detalle)':'✗ No cuadra — faltan tarjetas';
+}
+
+// ── Cierre de mes ──
+function thEstadoCelda(tech,fecha){
+  if(!thEsperaTarjeta(fecha,tech))return 'nolab';
+  const m=thMarcas[tech+'_'+fecha];
+  if(m==='VAC')return 'vac';if(m==='AUS')return 'aus';
+  const t=thTarjetas[tech+'_'+fecha];
+  if(!t||!t.franjas||!t.franjas.length)return 'falta';
+  if(thSolapadas(t).size>0||thHuecos(t).length>0||thVerif(t)!==0)return 'warn';
+  return 'ok';
+}
+const TH_DOW=['D','L','M','M','J','V','S'];
+async function thRenderCierre(){
+  if(!thRangoCargado)await thCargarMesRemoto();
+  document.getElementById('thMesCierreLabel').textContent=thMesLabel(thMes);
+  const dias=thDiasDelMes(thMes);
+  const TECS=(typeof TECNICOS!=='undefined')?TECNICOS:[];
+  // Grilla
+  let head='<thead><tr><th class="g-tech">Técnico</th>';
+  dias.forEach(d=>{const dow=new Date(d+'T00:00:00').getDay();head+=`<th><div>${d.slice(8)}</div><div class="th-gdow">${TH_DOW[dow]}</div></th>`;});
+  head+='</tr></thead>';
+  let body='<tbody>';
+  TECS.forEach(tc=>{body+=`<tr><td class="g-tech">${(typeof esc==='function'?esc(tc.name):tc.name)}</td>`;
+    dias.forEach(d=>{const est=thEstadoCelda(tc.id,d);
+      const cls={ok:'g-ok',warn:'g-warn',falta:'g-falta',aus:'g-aus',vac:'g-vac',nolab:'g-nolab'}[est];
+      const txt={ok:'✓',warn:'!',falta:'·',aus:'A',vac:'V',nolab:''}[est];
+      const clk=(est==='falta'||est==='aus'||est==='vac')?'clickable':'';
+      const ti={ok:'Cargada y cuadra',warn:'Cargada — revisar',falta:'Falta tarjeta (clic: marcar ausencia/vacaciones)',aus:'Ausencia (clic para cambiar)',vac:'Vacaciones (clic para cambiar)',nolab:'No laborable'}[est];
+      body+=`<td><span class="th-gcell ${cls} ${clk}" title="${ti}" ${clk?`onclick="thCiclar('${tc.id}','${d}')"`:''}>${txt}</span></td>`;});
+    body+='</tr>';});
+  body+='</tbody>';
+  document.getElementById('thGrillaTabla').innerHTML=head+body;
+  // Liquidación
+  let html='<thead><tr><th>Técnico</th><th>Extra simple</th><th>Extra doble</th><th>Total crudo</th><th>Equiv. pagado</th><th>Ausencias</th><th>Vacaciones</th><th>Verif.</th></tr></thead><tbody>';
+  let tS=0,tD=0,tC=0,tP=0,tA=0,tV=0;
+  TECS.forEach(tc=>{
+    let simple=0,doble=0,aus=0,vac=0,desc=0;
+    dias.forEach(d=>{const t=thTarjetas[tc.id+'_'+d];
+      if(t&&t.franjas&&t.franjas.length){const e=thExtras(t);simple+=e.simple;doble+=e.doble;
+        if(thVerif(t)!==0||thHuecos(t).length>0||thSolapadas(t).size>0)desc++;
+        aus+=thNum(t.disp&&t.disp.ausencias);vac+=thNum(t.disp&&t.disp.vacaciones);}
+      const m=thMarcas[tc.id+'_'+d];if(m==='AUS'&&thEsperaTarjeta(d,tc.id))aus+=9;if(m==='VAC'&&thEsperaTarjeta(d,tc.id))vac+=9;});
+    const crudo=thRound(simple+doble),pagado=thRound(simple+doble*2);
+    simple=thRound(simple);doble=thRound(doble);aus=thRound(aus);vac=thRound(vac);
+    tS+=simple;tD+=doble;tC+=crudo;tP+=pagado;tA+=aus;tV+=vac;
+    if(!(simple||doble||aus||vac))return;
+    const verif=desc===0?'<span class="th-liq-ok">✓</span>':`<span class="th-liq-bad">${desc} ⚠</span>`;
+    html+=`<tr><td>${(typeof esc==='function'?esc(tc.name):tc.name)}</td>
+      <td class="th-liq-simple">${simple?thFmt(simple):'—'}</td><td class="th-liq-doble">${doble?thFmt(doble):'—'}</td>
+      <td>${crudo?thFmt(crudo):'—'}</td><td class="th-liq-pagado">${pagado?thFmt(pagado):'—'}</td>
+      <td>${aus?thFmt(aus):'—'}</td><td class="th-liq-vac">${vac?thFmt(vac):'—'}</td><td>${verif}</td></tr>`;
+  });
+  html+=`<tr class="th-liq-total"><td>TOTAL EQUIPO</td><td class="th-liq-simple">${thFmt(tS)}</td><td class="th-liq-doble">${thFmt(tD)}</td><td>${thFmt(tC)}</td><td class="th-liq-pagado">${thFmt(tP)}</td><td>${thFmt(tA)}</td><td class="th-liq-vac">${thFmt(tV)}</td><td></td></tr></tbody>`;
+  document.getElementById('thLiqTabla').innerHTML=html;
+}
+function thCiclar(tech,fecha){const k=tech+'_'+fecha;const a=thMarcas[k];if(!a)thMarcas[k]='AUS';else if(a==='AUS')thMarcas[k]='VAC';else delete thMarcas[k];thRenderCierre();}
+
+function thCambiarMes(delta){const[y,m]=thMes.split('-').map(Number);const d=new Date(y,m-1+delta,1);
+  thMes=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;thRangoCargado=false;
+  if(thVista==='marca')thRenderMarca();else if(thVista==='cierre')thRenderCierre();}
+
+// ── Navegación de sub-tabs ──
+function thSetView(v){
+  thVista=v;
+  ['carga','marca','cierre'].forEach(x=>{
+    document.getElementById('thSt'+x.charAt(0).toUpperCase()+x.slice(1)).classList.toggle('active',x===v);
+    document.getElementById('thView'+x.charAt(0).toUpperCase()+x.slice(1)).classList.toggle('active',x===v);
+  });
+  if(v==='marca')thRenderMarca();
+  if(v==='cierre')thRenderCierre();
+}
+
+// ── Init (se llama desde switchTab cuando se abre la pestaña) ──
+let thInicializado=false;
+function thInit(){
+  if(!thInicializado){
+    thInicializado=true;
+    // Poblar selector de técnicos
+    const sel=document.getElementById('thTechSelect');
+    if(sel&&typeof TECNICOS!=='undefined')sel.innerHTML=TECNICOS.map(t=>`<option value="${t.id}" ${t.id===thTech?'selected':''}>${t.name}</option>`).join('');
+    thActualizarDiaLabel();
+    // Traer trabajos para las OT si no están
+    if(typeof loadTrabajosSilent==='function')loadTrabajosSilent().then(()=>thRenderCarga());
+    thCargarDiaRemoto().then(()=>{thRenderDisp();thRenderCarga();});
+  }else{
+    // Al volver a la pestaña, refrescar la vista activa
+    if(thVista==='carga'){thRenderDisp();thRenderCarga();}
+    else if(thVista==='marca')thRenderMarca();
+    else thRenderCierre();
+  }
+}
+
+function thExportarMarca(){alert('Exportación a Excel/PDF para CNH: se agrega en la próxima etapa.');}
+function thExportarLiq(){alert('Exportación de la liquidación a Excel: se agrega en la próxima etapa.');}
+</script>
+ 
 </body>
 </html>
