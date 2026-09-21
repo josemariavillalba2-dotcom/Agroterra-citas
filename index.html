@@ -5559,7 +5559,9 @@ if ("serviceWorker" in navigator) {
   
 
 <!-- ═══════════════════════════════════════════════════════════════════
-     TARJETAS HORARIAS — bloque único autoinstalable.
+     TARJETAS HORARIAS — bloque único autoinstalable (v3).
+     Novedades v3: autocompletado de Diarias por jornada + categorías
+     Ausencia y Vacaciones (se cargan como franja, se descuentan de disponibles).
      Pegar TODO esto justo ANTES de </body>. No requiere tocar nada más.
      ═══════════════════════════════════════════════════════════════════ -->
 <style>
@@ -5715,26 +5717,23 @@ if ("serviceWorker" in navigator) {
   .th-liq-total td{border-top:2px solid var(--border);border-bottom:none;font-weight:800;color:var(--text);padding-top:10px}
 </style>
 <script>
+
 (function(){
-  // 1) Inyectar el panel al final del body (si no existe ya)
   if (!document.getElementById('horariosPanel')) {
     var wrap = document.createElement('div');
     wrap.innerHTML = '<div class="horarios-panel" id="horariosPanel">\n  <div class="th-subtabs">\n    <div class="th-subtab active" id="thStCarga" onclick="thSetView(\'carga\')">🕐 Carga de tarjetas</div>\n    <div class="th-subtab" id="thStMarca" onclick="thSetView(\'marca\')">📊 Reporte marca (CNH)</div>\n    <div class="th-subtab" id="thStCierre" onclick="thSetView(\'cierre\')">🗂 Cierre de mes</div>\n  </div>\n\n  <!-- Carga -->\n  <div class="th-view active" id="thViewCarga">\n    <div class="th-toolbar">\n      <div class="th-daynav">\n        <button onclick="thCambiarDia(-1)">‹</button>\n        <span id="thDiaLabel"></span>\n        <button onclick="thCambiarDia(1)">›</button>\n      </div>\n      <select class="th-tech-select" id="thTechSelect" onchange="thCargarTarjeta()"></select>\n      <div class="th-verif">\n        <div class="th-verif-item"><span class="th-verif-label">Trabajadas</span><span class="th-verif-val" id="thVTrab" style="color:var(--accent2)">0 h</span></div>\n        <div class="th-verif-sep"></div>\n        <div class="th-verif-item"><span class="th-verif-label">Disponibles</span><span class="th-verif-val" id="thVDisp">0 h</span></div>\n        <div class="th-verif-sep"></div>\n        <span class="th-verif-estado ok" id="thVEstado">Sin cargar</span>\n      </div>\n    </div>\n    <div class="th-cols">\n      <div class="th-panel-b">\n        <div class="th-panel-title"><span>Franjas de la tarjeta</span><span id="thFrCount" style="color:var(--text-dim);font-weight:600;text-transform:none;letter-spacing:0"></span></div>\n        <table class="thfr-table">\n          <thead><tr>\n            <th style="width:82px">Desde</th><th style="width:82px">Hasta</th>\n            <th style="width:50px;text-align:right">Hs</th><th>Categoría</th><th>OT</th>\n            <th>Observación</th><th style="width:28px"></th>\n          </tr></thead>\n          <tbody id="thFranjasBody"></tbody>\n        </table>\n        <button class="btn-addfranja" onclick="thAgregarFranja()">+ Agregar franja</button>\n        <div class="th-solap-banner" id="thSolapBanner">⛔ <span id="thSolapMsg"></span></div>\n        <div class="th-hueco-banner" id="thHuecoBanner">⚠ <span id="thHuecoMsg"></span></div>\n        <div id="thCatResumen"></div>\n        <div class="th-save-row">\n          <button class="th-btn-save" id="thBtnSave" onclick="thGuardarTarjeta()">Guardar tarjeta</button>\n          <span class="th-save-hint" id="thSaveHint"></span>\n        </div>\n      </div>\n      <div class="th-panel-b">\n        <div class="th-panel-title"><span>Horas disponibles</span><span style="color:var(--text-dim);font-weight:600;text-transform:none;letter-spacing:0">eje IGS</span></div>\n        <div class="th-disp-row"><label>Diarias</label><input type="text" id="thDDiarias" oninput="thRecalc()" inputmode="decimal"></div>\n        <div class="th-disp-row"><label>Extras</label><input type="text" id="thDExtras" oninput="thRecalc()" inputmode="decimal" placeholder="auto"></div>\n        <div class="th-disp-row"><label>Vacaciones</label><input type="text" id="thDVacaciones" oninput="thRecalc()" inputmode="decimal" placeholder="0"></div>\n        <div class="th-disp-row"><label>Ausencias</label><input type="text" id="thDAusencias" oninput="thRecalc()" inputmode="decimal" placeholder="0"></div>\n        <div class="th-disp-total"><div class="th-disp-row"><label>Total disponibles</label><span id="thDTotal">0 h</span></div></div>\n        <div class="th-extras-box">\n          <div class="th-panel-title" style="margin-bottom:8px"><span>Extras del día</span><span style="color:var(--text-dim);font-weight:600;text-transform:none;letter-spacing:0">calculadas</span></div>\n          <div class="th-extras-line"><span class="lbl">Extra simple</span><span style="color:var(--accent);font-weight:700" id="thExSimple">0 h</span></div>\n          <div class="th-extras-line"><span class="lbl">Extra doble (sáb +13h / dom)</span><span style="color:#ef4444;font-weight:700" id="thExDoble">0 h</span></div>\n          <div class="th-extras-line" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px">\n            <span class="lbl" style="font-weight:700;color:var(--text)">Total a informar (crudo)</span>\n            <span style="font-weight:800;color:var(--text)" id="thExCrudo">0 h</span>\n          </div>\n        </div>\n        <div class="th-hint">\n          Las extras salen solas de comparar las franjas contra la jornada del día\n          (L–J 08–17, V 08–16:30, Sáb 08–12). Antes de las 8 y el sábado 12–13 son simples;\n          el sábado desde las 13:00 y el domingo entero corren dobles. A la marca va el total en crudo.\n        </div>\n      </div>\n    </div>\n  </div>\n\n  <!-- Reporte marca -->\n  <div class="th-view" id="thViewMarca">\n    <div class="th-marca-head">\n      <div class="th-marca-title">Seguimiento Gestión Servicios <span>— reporte CNH</span></div>\n      <div class="th-daynav"><button onclick="thCambiarMes(-1)">‹</button><span id="thMesMarcaLabel" style="min-width:150px"></span><button onclick="thCambiarMes(1)">›</button></div>\n      <span class="th-marca-cuadra ok" id="thMarcaCuadra">✓ Cuadra</span>\n    </div>\n    <div class="th-rep-wrap">\n      <table class="th-rep-table" id="thRepTable"></table>\n      <div class="th-rep-note">\n        Todo se llena solo desde las tarjetas del mes. La regla de control es\n        <b style="color:var(--text-dim)">Total Disponibles = Total Detalle</b>: si no cuadra, hay tarjetas sin completar.\n        Las Hs Extras van en crudo (horas realmente trabajadas), como pide el cuadro de la marca.\n      </div>\n      <button class="th-btn-export" onclick="thExportarMarca()">⬇ Exportar para la marca</button>\n    </div>\n  </div>\n\n  <!-- Cierre de mes -->\n  <div class="th-view" id="thViewCierre">\n    <div class="th-marca-head">\n      <div class="th-marca-title">Cierre de mes <span>— control y liquidación (uso interno)</span></div>\n      <div class="th-daynav"><button onclick="thCambiarMes(-1)">‹</button><span id="thMesCierreLabel" style="min-width:150px"></span><button onclick="thCambiarMes(1)">›</button></div>\n    </div>\n    <div class="th-cierre-sec">\n      <div class="th-cierre-title">Control de entregas</div>\n      <div class="th-cierre-sub">Qué tarjetas están cargadas y cuáles faltan, técnico por técnico. Tocá una celda roja para marcarla como ausencia o vacaciones si el técnico no trabajó ese día.</div>\n      <div class="th-grilla-wrap"><table class="th-grilla" id="thGrillaTabla"></table></div>\n      <div class="th-grilla-leyenda">\n        <div class="th-gl-item"><span class="th-gl-box g-ok" style="background:rgba(34,197,94,.85)"></span> Cargada y cuadra</div>\n        <div class="th-gl-item"><span class="th-gl-box g-warn" style="background:rgba(250,204,21,.85)"></span> Cargada, revisar</div>\n        <div class="th-gl-item"><span class="th-gl-box g-falta" style="background:rgba(239,68,68,.85)"></span> Falta tarjeta</div>\n        <div class="th-gl-item"><span class="th-gl-box g-aus" style="background:rgba(107,116,148,.3)"></span> Ausencia</div>\n        <div class="th-gl-item"><span class="th-gl-box g-vac" style="background:rgba(62,207,207,.3)"></span> Vacaciones</div>\n        <div class="th-gl-item"><span class="th-gl-box g-nolab" style="border:1px solid var(--border)"></span> No laborable</div>\n      </div>\n    </div>\n    <div class="th-cierre-sec">\n      <div class="th-cierre-title">Liquidación por técnico</div>\n      <div class="th-cierre-sub">Extras separadas en simples y dobles, con el equivalente a pagar (la doble vale x2). Ausencias y vacaciones del mes. Esto reemplaza el Excel de cierre.</div>\n      <table class="th-liq-table" id="thLiqTabla"></table>\n      <button class="th-btn-export" onclick="thExportarLiq()">⬇ Exportar liquidación</button>\n    </div>\n  </div>\n</div>\n\n\n<!-- ────────────────────────────────────────────────────────────────────\n     PASO 3 — El JAVASCRIPT.\n     Antes de cerrar el <script> principal (o en un <script> nuevo al final\n     del body), pegá todo este bloque. Y en tu función switchTab(tab)\n     existente, agregá estas líneas donde togglés los paneles:\n\n       document.getElementById(\'horariosPanel\').classList.toggle(\'visible\', tab===\'horarios\');\n       document.getElementById(\'tabHorarios\').classList.toggle(\'active\', tab===\'horarios\');\n       if (tab===\'horarios\') thInit();\n\n     ──────────────────────────────────────────────────────────────────── -->';
     while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
   }
-  // 2) Agregar el tab después de Analytics (si no existe ya)
   if (!document.getElementById('tabHorarios')) {
     var tabAn = document.getElementById('tabAnalytics');
     if (tabAn) {
       var t = document.createElement('div');
-      t.className = 'nav-tab';
-      t.id = 'tabHorarios';
+      t.className = 'nav-tab'; t.id = 'tabHorarios';
       t.setAttribute('onclick', "switchTab('horarios')");
       t.textContent = '🕐 Tarjetas horarias';
       tabAn.parentNode.insertBefore(t, tabAn.nextSibling);
     }
   }
-  // 3) Envolver switchTab para manejar la pestaña 'horarios' sin tocar el original
   if (typeof switchTab === 'function' && !switchTab._thWrapped) {
     var _origSwitchTab = switchTab;
     window.switchTab = function(tab){
@@ -5743,14 +5742,15 @@ if ("serviceWorker" in navigator) {
       var tabH  = document.getElementById('tabHorarios');
       if (panel) panel.classList.toggle('visible', tab==='horarios');
       if (tabH)  tabH.classList.toggle('active', tab==='horarios');
-      // Ocultar el panel de horarios cuando NO es su pestaña ya lo hace la clase .visible.
       if (tab==='horarios') { try { thInit(); } catch(e){ console.warn('thInit:', e.message); } }
     };
     window.switchTab._thWrapped = true;
   }
 })();
+
 </script>
 <script>
+
 // ══════════════════════════════════════════════════════════════
 // TARJETAS HORARIAS — lógica. Reusa TECNICOS, HOURS, SLOT_H, slotIndex,
 // jsonpRequest, trabajos, loadTrabajosSilent, ordenDe, esc del tablero.
@@ -5769,8 +5769,15 @@ const TH_CATEGORIAS=[
   {id:'OG',  label:'Op. Generales',      sigla:'OG',  fila:'Hs. Trabajadas Operaciones Generales',  facturable:false, color:'#a78bfa'},
   {id:'REF', label:'Refrigerios',        sigla:'Refr',fila:'Hs. Refrigerios',                       facturable:false, color:'#94a3b8'},
   {id:'DEM', label:'Demora',             sigla:'Dem', fila:'Hs. Demoras',                           facturable:false, color:'#2f6fed'},
+  // Ausencia y Vacaciones: NO son trabajo. Se cargan como franja (con su horario)
+  // pero se DESCUENTAN de las disponibles en vez de sumar como hora trabajada.
+  // 'noTrabajo' las marca; 'descuenta' dice a qué eje del reporte van (aus/vac).
+  {id:'AUS', label:'Ausencia',           sigla:'Aus', fila:'Hs. Ausencias',                         facturable:false, color:'#6b7494', noTrabajo:true, descuenta:'ausencias'},
+  {id:'VAC', label:'Vacaciones',         sigla:'Vac', fila:'Hs. Vacaciones',                        facturable:false, color:'#3ecfcf', noTrabajo:true, descuenta:'vacaciones'},
 ];
 function thCat(id){return TH_CATEGORIAS.find(c=>c.id===id)||null;}
+// ¿Esta franja es de ausencia/vacaciones? (no cuenta como trabajo)
+function thEsNoTrabajo(cat){const c=thCat(cat);return !!(c&&c.noTrabajo);}
 
 // Grilla de 15 min a 24 h. Si el tablero ya define HOURS de 08–19, usamos una propia.
 const TH_HOURS=[];
@@ -5811,8 +5818,21 @@ function thClasificar(fecha,desde,hasta){
   for(let x=si;x<ei;x++){if(x<ini)s+=TH_SLOT_H;else if(x<fin)n+=TH_SLOT_H;else s+=TH_SLOT_H;}
   return{normal:thRound(n),simple:thRound(s),doble:0};
 }
-function thExtras(t){let s=0,d=0;(t.franjas||[]).forEach(f=>{const c=thClasificar(t.fecha,f.desde,f.hasta);s+=c.simple;d+=c.doble;});
+function thExtras(t){let s=0,d=0;(t.franjas||[]).forEach(f=>{
+    if(thEsNoTrabajo(f.cat))return; // ausencia/vacaciones no generan extras
+    const c=thClasificar(t.fecha,f.desde,f.hasta);s+=c.simple;d+=c.doble;});
   return{simple:thRound(s),doble:thRound(d),totalCrudo:thRound(s+d),totalPagado:thRound(s+d*2)};}
+
+// Horas de ausencia y de vacaciones que surgen de las FRANJAS (no del eje manual).
+// Se suman a lo que Gino haya puesto a mano en el eje disponibles.
+function thNoTrabajoFranjas(t){
+  let aus=0,vac=0;
+  (t.franjas||[]).forEach(f=>{
+    if(f.cat==='AUS')aus+=thHorasFranja(f);
+    else if(f.cat==='VAC')vac+=thHorasFranja(f);
+  });
+  return{ausencias:thRound(aus),vacaciones:thRound(vac)};
+}
 
 // ── Estado ──
 let thDia=thHoyISO(), thTech=(typeof TECNICOS!=='undefined'&&TECNICOS[0])?TECNICOS[0].id:'VP';
@@ -5826,8 +5846,35 @@ function thClave(){return thTech+'_'+thDia;}
 function thTarjeta(){const k=thClave();if(!thTarjetas[k])thTarjetas[k]={tech:thTech,fecha:thDia,disp:{diarias:'',extras:'',vacaciones:'',ausencias:''},franjas:[]};thTarjetas[k].fecha=thDia;thTarjetas[k].tech=thTech;return thTarjetas[k];}
 
 function thHorasFranja(f){return Math.max(0,(thSlot(f.hasta)-thSlot(f.desde))*TH_SLOT_H);}
-function thTrabajadas(t){return (t.franjas||[]).reduce((a,f)=>a+thHorasFranja(f),0);}
-function thDisponibles(t){const d=t.disp||{};const ex=(d.extras!==''&&d.extras!=null)?thNum(d.extras):thExtras(t).totalCrudo;return thRound(thNum(d.diarias)+ex-thNum(d.vacaciones)-thNum(d.ausencias));}
+// Trabajadas = suma de franjas de TRABAJO (las de ausencia/vacaciones no cuentan)
+function thTrabajadas(t){return (t.franjas||[]).reduce((a,f)=>a+(thEsNoTrabajo(f.cat)?0:thHorasFranja(f)),0);}
+
+// Jornada diaria teórica del técnico ese día (para autocompletar "Diarias").
+// Misma lógica que el tablero: L–J 9h, V 8,5h, Sáb 4h (al grupo que le toca), Dom/feriado 0.
+function thJornadaDiaria(fecha,tech){
+  if(typeof FERIADOS!=='undefined'&&FERIADOS[fecha])return 0;
+  const dow=new Date(fecha+'T00:00:00').getDay();
+  if(dow===0)return 0;                                   // domingo
+  if(dow===6)return thSabTechs(fecha).includes(tech)?4:0; // sábado: solo al grupo que trabaja
+  if(dow===5)return 8.5;                                  // viernes
+  return 9;                                               // lun–jue
+}
+// Diarias a usar: si Gino cargó un valor, ese manda; si está vacío, autocompleta la jornada.
+function thDiariasEfectivas(t){
+  const d=t.disp||{};
+  if(d.diarias!==''&&d.diarias!=null)return thNum(d.diarias); // respeta lo que Gino puso
+  return thJornadaDiaria(t.fecha,t.tech);                     // autocompleta
+}
+// Disponibles = Diarias (auto o manual) + Extras − Vacaciones − Ausencias.
+// Vacaciones/Ausencias salen de las franjas Y de lo que Gino pudo poner a mano en el eje.
+function thDisponibles(t){
+  const d=t.disp||{};
+  const ex=(d.extras!==''&&d.extras!=null)?thNum(d.extras):thExtras(t).totalCrudo;
+  const nt=thNoTrabajoFranjas(t);
+  const vac=nt.vacaciones+thNum(d.vacaciones);
+  const aus=nt.ausencias +thNum(d.ausencias);
+  return thRound(thDiariasEfectivas(t)+ex-vac-aus);
+}
 function thVerif(t){return thRound(thTrabajadas(t)-thDisponibles(t));}
 function thSolapadas(t){
   const sol=new Set();const fr=t.franjas||[];
@@ -5923,7 +5970,17 @@ function thRenderVerif(){
   else{est.className='th-verif-estado bad';est.textContent=(x>0?'✗ Sobran ':'✗ Faltan ')+thFmt(Math.abs(x));}
   est.style.cssText='';
 }
-function thRenderDisp(){const d=thTarjeta().disp;document.getElementById('thDDiarias').value=d.diarias||'';document.getElementById('thDExtras').value=d.extras||'';document.getElementById('thDVacaciones').value=d.vacaciones||'';document.getElementById('thDAusencias').value=d.ausencias||'';}
+function thRenderDisp(){
+  const t=thTarjeta(), d=t.disp;
+  const inpD=document.getElementById('thDDiarias');
+  inpD.value=d.diarias||'';
+  // Si Gino no cargó Diarias, mostramos la jornada autocompletada como placeholder
+  // (número gris que el sistema ya está usando en el cálculo).
+  inpD.placeholder='auto: '+thFmt(thJornadaDiaria(t.fecha,t.tech));
+  document.getElementById('thDExtras').value=d.extras||'';
+  document.getElementById('thDVacaciones').value=d.vacaciones||'';
+  document.getElementById('thDAusencias').value=d.ausencias||'';
+}
 function thRenderCarga(){thRenderFranjas();thRenderCats();thRenderVerif();}
 
 function thEdit(i,campo,val){thTarjeta().franjas[i][campo]=val;thRenderCarga();}
@@ -5953,21 +6010,72 @@ async function thCargarMesRemoto(){
     thRangoCargado=true;
   }catch(e){console.warn('getTarjetas mes:',e.message);thRangoCargado=true;}
 }
+// Guardado robusto: envía por POST (no-cors, sin el timeout de 15s de JSONP)
+// y confirma leyendo de vuelta. Guardar es idempotente (clave técnico+fecha:
+// sobrescribe la misma fila), así que un reintento nunca duplica.
 async function thGuardarTarjeta(){
   const t=thTarjeta();
   if(thSolapadas(t).size>0){alert('No se puede guardar: hay franjas que se pisan en el tiempo.');return;}
-  const btn=document.getElementById('thBtnSave');btn.disabled=true;btn.textContent='Guardando…';
-  try{
-    if(typeof jsonpRequest!=='undefined'){
-      const r=await jsonpRequest({action:'saveTarjeta',tech:t.tech,fecha:t.fecha,
-        franjas:JSON.stringify(t.franjas||[]),disp:JSON.stringify(t.disp||{})});
-      if(!r||!r.ok)throw new Error(r&&r.error||'sin respuesta');
-    }
+  const btn=document.getElementById('thBtnSave');
+  const hint=document.getElementById('thSaveHint');
+  btn.disabled=true;btn.textContent='Guardando…';if(hint)hint.textContent='';
+  const payload={action:'saveTarjeta',tech:t.tech,fecha:t.fecha,
+    franjas:JSON.stringify(t.franjas||[]),disp:JSON.stringify(t.disp||{})};
+
+  // Si no hay backend configurado (demo), simular OK
+  if(typeof API_URL==='undefined'||!API_URL||API_URL.startsWith('TU_')){
     btn.textContent='✓ Guardada';setTimeout(()=>{btn.textContent='Guardar tarjeta';btn.disabled=false;},1500);
-  }catch(e){
-    alert('No se pudo guardar la tarjeta: '+e.message);
-    btn.textContent='Guardar tarjeta';btn.disabled=false;
+    return;
   }
+
+  // 1) Enviar por POST no-cors: el navegador no espera respuesta, así que no
+  //    hay timeout que se agote. El dato llega igual a la planilla.
+  try{
+    await fetch(API_URL,{
+      method:'POST',mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify(payload)
+    });
+  }catch(e){ /* no-cors no informa error real; la verificación de abajo decide */ }
+
+  // 2) Confirmar leyendo de vuelta esa misma tarjeta (con un par de reintentos
+  //    espaciados, porque Apps Script puede tardar en reflejar el guardado).
+  btn.textContent='Confirmando…';
+  const guardoOk=await thConfirmarGuardado(t,3);
+  if(guardoOk){
+    btn.textContent='✓ Guardada';
+    if(hint)hint.textContent='';
+    setTimeout(()=>{btn.textContent='Guardar tarjeta';btn.disabled=false;},1500);
+  }else{
+    // No se pudo confirmar. Puede que igual haya guardado (la planilla estaba
+    // lenta). Avisamos sin alarmar y dejamos reintentar.
+    btn.textContent='Guardar tarjeta';btn.disabled=false;
+    if(hint)hint.textContent='⚠ No se pudo confirmar el guardado — revisá la conexión y probá de nuevo. Si seguís, la tarjeta puede haber quedado igual: verificá en Cierre de mes.';
+  }
+}
+
+// Lee la tarjeta desde la planilla y compara que las franjas coincidan con lo
+// que está en pantalla. Reintenta 'intentos' veces, esperando entre cada uno.
+async function thConfirmarGuardado(t,intentos){
+  const espera=ms=>new Promise(r=>setTimeout(r,ms));
+  for(let i=0;i<intentos;i++){
+    await espera(i===0?600:1500); // primer chequeo rápido, luego más pausado
+    try{
+      const r=await jsonpRequest({action:'getTarjetas',tech:t.tech,desde:t.fecha,hasta:t.fecha});
+      if(r&&r.ok&&r.data&&r.data.length){
+        const guardada=r.data[0];
+        const a=JSON.stringify((guardada.franjas||[]));
+        const b=JSON.stringify((t.franjas||[]));
+        if(a===b){
+          // Actualizar el cache local con lo confirmado de la planilla
+          thTarjetas[t.tech+'_'+t.fecha]={tech:t.tech,fecha:t.fecha,
+            franjas:guardada.franjas||[],disp:guardada.disp||t.disp};
+          return true;
+        }
+      }
+    }catch(e){ /* seguir reintentando */ }
+  }
+  return false;
 }
 
 // ── Reporte marca ──
@@ -5984,13 +6092,19 @@ async function thRenderMarca(){
   const dias=new Set(),techs=new Set();
   delMes.forEach(t=>{
     const ex=(t.disp&&t.disp.extras!==''&&t.disp.extras!=null)?thNum(t.disp.extras):thExtras(t).totalCrudo;
-    extras+=ex;vac+=thNum(t.disp&&t.disp.vacaciones);aus+=thNum(t.disp&&t.disp.ausencias);diarias+=thNum(t.disp&&t.disp.diarias);
+    const nt=thNoTrabajoFranjas(t); // ausencias/vacaciones que salen de las franjas
+    extras+=ex;
+    vac+=nt.vacaciones+thNum(t.disp&&t.disp.vacaciones);
+    aus+=nt.ausencias +thNum(t.disp&&t.disp.ausencias);
+    diarias+=thDiariasEfectivas(t); // auto si Gino no cargó, o su valor
     (t.franjas||[]).forEach(f=>{if(pc[f.cat]!==undefined)pc[f.cat]+=thHorasFranja(f);});
     dias.add(t.fecha);techs.add(t.tech);
   });
-  // Ausencias/vacaciones marcadas a mano
-  Object.keys(thMarcas).forEach(k=>{const[tech,fecha]=k.split('_');if(thMes!==fecha.slice(0,7))return;if(!thEsperaTarjeta(fecha,tech))return;if(thMarcas[k]==='AUS')aus+=9;if(thMarcas[k]==='VAC')vac+=9;});
-  const totalDet=thRound(Object.values(pc).reduce((a,b)=>a+b,0));
+  // Ausencias/vacaciones marcadas a mano en la grilla del cierre (sin tarjeta)
+  Object.keys(thMarcas).forEach(k=>{const[tech,fecha]=k.split('_');if(thMes!==fecha.slice(0,7))return;if(!thEsperaTarjeta(fecha,tech))return;const jd=thJornadaDiaria(fecha,tech);if(thMarcas[k]==='AUS')aus+=jd;if(thMarcas[k]==='VAC')vac+=jd;});
+  // El Registro de Hs (horas trabajadas) NO incluye ausencia/vacaciones: esas van
+  // arriba, en Datos Base. El Total Detalle suma solo las categorías de trabajo.
+  const totalDet=thRound(TH_CATEGORIAS.filter(c=>!c.noTrabajo).reduce((a,c)=>a+pc[c.id],0));
   const totalDisp=thRound(diarias+extras-vac-aus);
   const cuadra=Math.abs(totalDisp-totalDet)<1;
   const fnum=n=>(Math.round(n*10)/10).toString().replace('.',',');
@@ -6003,7 +6117,7 @@ async function thRenderMarca(){
   html+=filaD('Hs Ausencias (-)',aus);
   html+=`<tr class="th-rep-total"><td>Total Disponibles</td><td class="th-rep-val">${fnum(totalDisp)}</td></tr>`;
   html+='<tr><td class="th-rep-sect" colspan="2">Registro de Hs</td></tr>';
-  TH_CATEGORIAS.forEach(c=>{html+=filaD(c.fila,pc[c.id]);});
+  TH_CATEGORIAS.filter(c=>!c.noTrabajo).forEach(c=>{html+=filaD(c.fila,pc[c.id]);});
   html+=`<tr class="th-rep-total"><td>Total Detalle de Hs</td><td class="th-rep-val">${fnum(totalDet)}</td></tr>`;
   document.getElementById('thRepTable').innerHTML=html;
   const cb=document.getElementById('thMarcaCuadra');
@@ -6050,8 +6164,10 @@ async function thRenderCierre(){
     dias.forEach(d=>{const t=thTarjetas[tc.id+'_'+d];
       if(t&&t.franjas&&t.franjas.length){const e=thExtras(t);simple+=e.simple;doble+=e.doble;
         if(thVerif(t)!==0||thHuecos(t).length>0||thSolapadas(t).size>0)desc++;
-        aus+=thNum(t.disp&&t.disp.ausencias);vac+=thNum(t.disp&&t.disp.vacaciones);}
-      const m=thMarcas[tc.id+'_'+d];if(m==='AUS'&&thEsperaTarjeta(d,tc.id))aus+=9;if(m==='VAC'&&thEsperaTarjeta(d,tc.id))vac+=9;});
+        const nt=thNoTrabajoFranjas(t);
+        aus+=nt.ausencias+thNum(t.disp&&t.disp.ausencias);
+        vac+=nt.vacaciones+thNum(t.disp&&t.disp.vacaciones);}
+      const m=thMarcas[tc.id+'_'+d];const jd=thJornadaDiaria(d,tc.id);if(m==='AUS'&&thEsperaTarjeta(d,tc.id))aus+=jd;if(m==='VAC'&&thEsperaTarjeta(d,tc.id))vac+=jd;});
     const crudo=thRound(simple+doble),pagado=thRound(simple+doble*2);
     simple=thRound(simple);doble=thRound(doble);aus=thRound(aus);vac=thRound(vac);
     tS+=simple;tD+=doble;tC+=crudo;tP+=pagado;tA+=aus;tV+=vac;
@@ -6104,7 +6220,9 @@ function thInit(){
 
 function thExportarMarca(){alert('Exportación a Excel/PDF para CNH: se agrega en la próxima etapa.');}
 function thExportarLiq(){alert('Exportación de la liquidación a Excel: se agrega en la próxima etapa.');}
+
 </script>
+
  
 </body>
 </html>
