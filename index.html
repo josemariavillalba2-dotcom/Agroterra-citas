@@ -3850,7 +3850,40 @@ function tieneHorasManual(t) {
 // no era del trabajo), esa corrección manda como total; se reparte entre los
 // técnicos manteniendo la proporción que marcan sus citas y, si no hay citas
 // para prorratear, por partes iguales entre los técnicos asignados.
+// ═══════════════════════════════════════════════════════════════════
+// VÍNCULO TARJETAS HORARIAS → EFICIENCIA
+// Lee las tarjetas (cache thTarjetas del bloque de Tarjetas Horarias) y suma,
+// para una orden, las horas de TRABAJO EFECTIVO repartidas por el técnico real
+// de cada franja. Categorías que cuentan: Taller, Campo, Garantía, Garantía+,
+// Retrabajo. Traslado/internas/refrigerio/etc. quedan FUERA de la eficiencia
+// (el traslado se cobra por km aparte). Es SOLO LECTURA: nunca toca las tarjetas.
+// Si el bloque de tarjetas no cargó (timeout, etc.), devuelve tieneTarjeta:false
+// y el cálculo cae al de siempre (citas → ajuste manual). Nunca rompe nada.
+function horasEficienciaDeTarjetas(trabajoId) {
+  if (typeof thTarjetas === 'undefined' || !thTarjetas) return { tieneTarjeta: false };
+  var CATS = ['CT','CC','G','GMAS','RE'];
+  var total = 0, porTech = {};
+  Object.keys(thTarjetas).forEach(function(k){
+    var tj = thTarjetas[k];
+    if (!tj || !tj.franjas) return;
+    tj.franjas.forEach(function(f){
+      if (f.otId === trabajoId && CATS.indexOf(f.cat) >= 0) {
+        var si = thSlot(f.desde), ei = thSlot(f.hasta);
+        var h = Math.max(0, (ei - si) * SLOT_H);
+        total += h;
+        porTech[tj.tech] = (porTech[tj.tech] || 0) + h;
+      }
+    });
+  });
+  total = Math.round(total * 100) / 100;
+  return { total: total, porTech: porTech, tieneTarjeta: total > 0 };
+}
+
 function horasPorTecnico(t) {
+  // ═══ VÍNCULO TARJETAS (inicio) — si la orden tiene tarjeta, esas horas mandan ═══
+  var _thv = horasEficienciaDeTarjetas(t.id);
+  if (_thv && _thv.tieneTarjeta) return { total: _thv.total, porTech: _thv.porTech };
+  // ═══ VÍNCULO TARJETAS (fin) — sin tarjeta, sigue exactamente igual que siempre ═══
   const auto = {};
   let totalAuto = 0;
   citasCumplidas(t.id).forEach(x => {
